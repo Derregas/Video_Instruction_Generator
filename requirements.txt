@@ -1,0 +1,13 @@
+# Основные библиотеки
+faster-whisper==1.2.1
+moviepy==2.2.1
+python-dotenv==1.2.1
+
+# Библиотеки NVIDIA для работы CUDA 12 на Windows без поиска DLL
+nvidia-cublas-cu12==12.9.*
+nvidia-cudnn-cu12==9.21.*
+nvidia-cuda-nvrtc-cu12==12.9.*
+
+# Зависимости для обработки данных
+numpy<3.0.0
+tqdm
