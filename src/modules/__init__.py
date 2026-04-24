@@ -1,3 +1,5 @@
 # src/modules/__init__.py
 
 from .audio_processor import AudioProcessor
+
+__all__ = ["AudioProcessor"]
