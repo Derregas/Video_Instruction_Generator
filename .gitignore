@@ -1,4 +1,31 @@
 /.venv
-/generator.log
+*.log
 /Test_Komp.mp4
-/__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.coverage
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+/temp/
+/results/
+*.wav
+*.mp3
+.env
+*.json
+
+*.jpg

@@ -30,7 +30,7 @@ class AudioProcessor:
         self._model = None
 
     @property
-    def model(self):
+    def model(self) -> WhisperModel:
         """Геттер для модели, чтобы обеспечить ленивую загрузку."""
         if self._model is None:
             logger.info(f"Загрузка Whisper модели '{self.model_size}' на {self.device}...")
@@ -85,5 +85,3 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Ошибка при транскрипции аудио: {e}")
             raise
-
-        return transcript_data

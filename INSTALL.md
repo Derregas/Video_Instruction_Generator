@@ -15,3 +15,10 @@
    ```powershell
    pip install -r requirements.txt
    ```
+
+4. Скачайте и установите Ollama с официального сайта:
+   https://ollama.com/download/windows
+   или
+   ```powershell
+   irm https://ollama.com/install.ps1 | iex
+   ```
