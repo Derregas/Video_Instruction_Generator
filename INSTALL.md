@@ -22,3 +22,10 @@
    ```powershell
    irm https://ollama.com/install.ps1 | iex
    ```
+
+5. Скачайте любую подходящую модель с https://ollama.com/library/:
+```
+   ollama pull [имя_модели]
+```
+
+6. Скопируйте пример настроек виртуального окружения в .env
