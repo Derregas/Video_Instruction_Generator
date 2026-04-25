@@ -18,18 +18,9 @@ def main():
     # Настройка логирования
     setup_logging()
     # Инициализация сервиса обработки инструкций и обработка видео
-    service = InstructionProcessingService(device="cuda", compute_type="float16", model_size="small")
-    
-    # Для теста
-    result = service.process_video(args.video_path)
-    print("Результат обработки видео:", result)
-    scenes = get_video_scenes(args.video_path)
-    print("Сцены в видео:", scenes)
-    matchs = align_data(result, scenes, args.video_path)
-    print("Сопоставление транскрипта с сценами:", matchs)
-    formal_instruction = generate_formal_instruction(matchs)
-    print("Сформированная инструкция:", formal_instruction)
-
+    service = InstructionProcessingService()
+    result = service.generate_instruction(args.video_path)
+    print(result)
 if __name__ == "__main__":
     result = main()
     print(result)

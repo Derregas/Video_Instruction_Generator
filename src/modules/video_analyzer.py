@@ -46,7 +46,7 @@ def align_data(transcript, scenes, video_path):
         shot_time = (max(text_block['start'], s1) + 
                      min(text_block['end'], s2)) / 2
         
-        img_path = f"tmp/step_{i}.jpg"
+        img_path = f"temp/step_{i}.jpg"
         extract_keyframe(video_path, shot_time, img_path)
         
         final_steps.append({
