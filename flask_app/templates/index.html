@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Instruction Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container-main {
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            height: calc(100vh - 40px);
+        }
+
+        /* Левая панель */
+        .sidebar {
+            width: 30%;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .sidebar-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .documents-upload {
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .documents-upload:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+
+        .documents-upload-icon {
+            font-size: 32px;
+            color: #adb5bd;
+            margin-bottom: 10px;
+        }
+
+        .documents-upload-text {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .sidebar-bottom {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-panel {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .info-panel-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #adb5bd;
+            text-align: center;
+        }
+
+        .info-panel-empty-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        .instruction-item {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .instruction-title {
+            font-weight: 600;
+            color: #212529;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .instruction-description {
+            font-size: 13px;
+            color: #495057;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+
+        .instruction-time {
+            font-size: 12px;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .time-link {
+            color: #667eea;
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 500;
+            border-bottom: 1px dotted #667eea;
+            transition: all 0.2s ease;
+        }
+
+        .time-link:hover {
+            color: #764ba2;
+            border-bottom-color: #764ba2;
+        }
+
+        /* Основная область */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .content-header {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            padding: 20px;
+        }
+
+        .content-header-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #212529;
+            margin: 0;
+        }
+
+        .content-body {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-y: auto;
+            background: white;
+        }
+
+        /* Drag & Drop */
+        .dropzone {
+            width: 100%;
+            /*max-width: 600px;*/
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .dropzone:hover,
+        .dropzone.dragover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .dropzone-icon {
+            font-size: 64px;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .dropzone-text {
+            font-size: 18px;
+            font-weight: 500;
+            color: #212529;
+            margin-bottom: 8px;
+        }
+
+        .dropzone-subtext {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .dropzone input[type="file"] {
+            display: none;
+        }
+
+        /* Видео плеер */
+        .video-container {
+            width: 100%;
+            display: none;
+        }
+
+        .video-container.active {
+            display: block;
+        }
+
+        .video-container video {
+            width: 100%;
+            max-height: calc(100vh - 180px);
+            border-radius: 8px;
+            background: #000;
+        }
+
+        .video-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #495057;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            width: 100%;
+        }
+
+        .loading-spinner.active {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spinner-border {
+            color: #667eea;
+        }
+
+        /* Wait timer */
+        .wait-timer {
+            background: #f0f2ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+            color: #495057;
+        }
+
+        .timer-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #667eea;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .wait-timer.exceeded {
+            background: #ffe6e6;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+
+        .wait-timer.exceeded .timer-value {
+            color: #dc3545;
+        }
+
+        /* Утилиты */
+        .text-truncate-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            .container-main {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 400px;
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+
+            .content-body {
+                padding: 20px;
+            }
+
+            .dropzone {
+                padding: 40px 20px;
+            }
+
+            .dropzone-icon {
+                font-size: 48px;
+            }
+
+            .dropzone-text {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-main">
+        <!-- Левая панель -->
+        <div class="sidebar">
+            <!-- Верхняя часть: Загрузка документов -->
+            <div class="sidebar-section" style="flex: 0 0 33%;">
+                <div class="sidebar-section-title">
+                    <i class="fas fa-file-upload"></i> Документы
+                </div>
+                <div class="documents-upload" title="Скоро будет доступно">
+                    <div class="documents-upload-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <div class="documents-upload-text">
+                        Загрузка документов будет доступна позже
+                    </div>
+                </div>
+            </div>
+
+            <!-- Нижняя часть: Информация после обработки -->
+            <div class="sidebar-bottom">
+                <div class="sidebar-section" style="border-bottom: none; padding-bottom: 0;">
+                    <div class="sidebar-section-title">
+                        <i class="fas fa-list-check"></i> Инструкции
+                    </div>
+                </div>
+                <div class="info-panel" id="infoPanel">
+                    <div class="info-panel-empty">
+                        <div>
+                            <div class="info-panel-empty-icon">
+                                <i class="fas fa-video"></i>
+                            </div>
+                            <p style="margin: 0;">Загрузите видео для обработки</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Основная область -->
+        <div class="main-content">
+            <div class="content-header">
+                <h1 class="content-header-title">
+                    <i class="fas fa-film" style="color: #667eea;"></i> Video Instruction Generator
+                </h1>
+            </div>
+
+            <div class="content-body">
+                <!-- Drag & Drop зона -->
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                    </div>
+                    <div class="dropzone-text">Перетащите или выберите видео</div>
+                    <div class="dropzone-subtext">MP4, WebM, OGG (максимум 500 МБ)</div>
+                    <input type="file" id="videoInput" accept="video/*">
+                </div>
+
+                <!-- Видео плеер -->
+                <div class="video-container" id="videoContainer">
+                    <video id="videoPlayer" controls>
+                        <p>Ваш браузер не поддерживает видео плеер</p>
+                    </video>
+                    <div class="video-info">
+                        <strong>Файл:</strong> <span id="videoFileName"></span>
+                        <br>
+                        <small style="color: #6c757d;">Видео загружено и обрабатывается...</small>
+                    </div>
+                </div>
+
+                <!-- Загрузка -->
+                <div class="loading-spinner" id="loadingSpinner">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Обработка...</span>
+                    </div>
+                    <p style="margin-top: 15px; color: #667eea;">Обработка видео...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const videoInput = document.getElementById('videoInput');
+        const videoContainer = document.getElementById('videoContainer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoFileName = document.getElementById('videoFileName');
+        const infoPanel = document.getElementById('infoPanel');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        let uploadedVideo = null;
+
+        // Обработчики Drag & Drop
+        dropzone.addEventListener('click', () => videoInput.click());
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleVideoUpload(files[0]);
+            }
+        });
+
+        videoInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleVideoUpload(e.target.files[0]);
+            }
+        });
+
+        function handleVideoUpload(file) {
+            if (!file.type.startsWith('video/')) {
+                alert('Пожалуйста, выберите видео файл');
+                return;
+            }
+
+            uploadedVideo = file;
+            
+            // Показываем видео плеер
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                videoPlayer.src = e.target.result;
+                videoFileName.textContent = file.name;
+                dropzone.style.display = 'none';
+                videoContainer.classList.add('active');
+                loadingSpinner.classList.add('active');
+                
+                // Получаем длительность видео
+                videoPlayer.onloadedmetadata = () => {
+                    const videoDuration = videoPlayer.duration;
+                    const estimatedWaitTime = (videoDuration / 2) + 30;
+                    
+                    // Очищаем информационную панель и запускаем таймер
+                    clearInfoPanel();
+                    startWaitTimer(estimatedWaitTime);
+                    
+                    // Загружаем видео на сервер
+                    uploadVideoToServer(file);
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        let timerInterval = null;
+        let processingStartTime = null;
+        let estimatedWaitTime = null;
+
+        function uploadVideoToServer(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+            
+            // Запоминаем время начала обработки
+            processingStartTime = Date.now();
+
+            fetch('/api/process', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                loadingSpinner.classList.remove('active');
+                
+                // Вычисляем пройденное время
+                const elapsedSeconds = Math.floor((Date.now() - processingStartTime) / 1000);
+                
+                // Очищаем таймер
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                
+                // Обновляем video-info
+                updateVideoInfo('Видео обработано');
+                
+                // Показываем информацию о прошедшем времени
+                showProcessingCompletionInfo(elapsedSeconds);
+                
+                if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                    resetUpload();
+                } else if (data.success || data.instruction) {
+                    displayInstructions(data.instruction);
+                } else {
+                    console.warn('Неизвестный формат ответа:', data);
+                    infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">Обработано: ${JSON.stringify(data)}</div></div>`;
+                }
+            })
+            .catch(error => {
+                loadingSpinner.classList.remove('active');
+                console.error('Ошибка при запросе:', error);
+                alert('Ошибка при обработке видео: ' + error.message);
+                
+                // Очищаем таймер при ошибке
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+                
+                resetUpload();
+            });
+        }
+
+        function displayInstructions(instructionData) {
+            console.log('Displaying instructions:', instructionData);
+            
+            if (!instructionData) {
+                infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description text-danger">Ошибка: нет данных для отображения</div></div>`;
+                return;
+            }
+            
+            try {
+                let instructions = instructionData;
+                
+                // Если это строка, пытаемся парсить как JSON
+                if (typeof instructionData === 'string') {
+                    try {
+                        instructions = JSON.parse(instructionData);
+                    } catch (e) {
+                        console.log('Не получилось парсить как JSON, выводим как текст');
+                        infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(instructionData)}</div></div>`;
+                        return;
+                    }
+                }
+                
+                // Ищем массив: либо это прямо массив, либо массив внутри объекта
+                let dataArray = null;
+                
+                if (Array.isArray(instructions)) {
+                    dataArray = instructions;
+                    console.log('Найден прямой массив');
+                } else if (typeof instructions === 'object' && instructions !== null) {
+                    // Ищем первый массив в объекте (может быть instructions, steps, data, items и т.д.)
+                    dataArray = Object.values(instructions).find(v => Array.isArray(v));
+                    if (dataArray) {
+                        console.log('Найден массив внутри объекта');
+                    }
+                }
+                
+                let html = '';
+                
+                if (dataArray && Array.isArray(dataArray)) {
+                    if (dataArray.length === 0) {
+                        html = `<div class="instruction-item"><div class="instruction-description">Инструкции не найдены</div></div>`;
+                    } else {
+                        dataArray.forEach((item, index) => {
+                            const title = item.title || item.name || item.step || 'Без названия';
+                            const description = item.description || item.text || item.content || '';
+                            
+                            // Получаем время в секундах и конвертируем в mm:ss или hh:mm:ss
+                            const startTimeSeconds = parseFloat(item.start_time || item.startTime || item.time_start || 0);
+                            const endTimeSeconds = parseFloat(item.end_time || item.endTime || item.time_end || 0);
+                            
+                            const startTimeFormatted = formatTime(startTimeSeconds);
+                            const endTimeFormatted = formatTime(endTimeSeconds);
+                            
+                            html += `
+                                <div class="instruction-item">
+                                    <div class="instruction-title">Шаг ${index + 1}: ${escapeHtml(String(title))}</div>
+                                    <div class="instruction-description">${escapeHtml(String(description))}</div>
+                                    <div class="instruction-time" style="cursor: pointer;">
+                                        <i class="fas fa-clock"></i>
+                                        <span class="time-link" onclick="seekVideo(${startTimeSeconds})" title="Нажмите, чтобы перейти к этому времени">
+                                            ${startTimeFormatted}
+                                        </span>
+                                        <span> - </span>
+                                        <span class="time-link" onclick="seekVideo(${endTimeSeconds})" title="Нажмите, чтобы перейти к этому времени">
+                                            ${endTimeFormatted}
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    }
+                } else if (typeof instructions === 'object' && instructions !== null) {
+                    // Если это объект без массива, отображаем его как текст
+                    html = `<div class="instruction-item"><div class="instruction-description"><pre>${escapeHtml(JSON.stringify(instructions, null, 2))}</pre></div></div>`;
+                } else if (typeof instructions === 'string') {
+                    // Если это простая строка
+                    html = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(instructions)}</div></div>`;
+                } else {
+                    html = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(String(instructions))}</div></div>`;
+                }
+                
+                infoPanel.innerHTML = html;
+            } catch (e) {
+                console.error('Ошибка при обработке инструкций:', e);
+                infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description text-danger">Ошибка при обработке: ${escapeHtml(e.message)}</div></div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function formatTime(seconds) {
+            // Преобразует секунды в формат mm:ss или hh:mm:ss
+            if (isNaN(seconds) || seconds < 0) return '0:00';
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            // Если видео длиннее часа, показываем hh:mm:ss
+            if (hours > 0) {
+                return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            }
+            // Иначе показываем mm:ss
+            return `${minutes}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function seekVideo(timeInSeconds) {
+            // Переходит к нужному времени в видео
+            const video = document.getElementById('videoPlayer');
+            if (video) {
+                video.currentTime = timeInSeconds;
+                // Если видео на паузе, начинаем проигрывание
+                if (video.paused) {
+                    video.play().catch(err => console.log('Не удалось начать проигрывание:', err));
+                }
+            }
+        }
+
+        function clearInfoPanel() {
+            infoPanel.innerHTML = `
+                <div class="info-panel-empty">
+                    <div>
+                        <div class="info-panel-empty-icon">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <p style="margin: 0;">Обработка видео...</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateVideoInfo(message) {
+            const videoInfo = document.querySelector('.video-info small');
+            if (videoInfo) {
+                videoInfo.textContent = message;
+            }
+        }
+
+        function startWaitTimer(estimatedSeconds) {
+            let remainingSeconds = Math.ceil(estimatedSeconds);
+            estimatedWaitTime = estimatedSeconds;
+            
+            const timerHtml = `
+                <div class="wait-timer" id="waitTimer">
+                    <div>⏱️ Ожидаемое время обработки:</div>
+                    <span class="timer-value" id="timerValue">${formatTime(remainingSeconds)}</span>
+                </div>
+            `;
+            
+            infoPanel.innerHTML = timerHtml;
+            
+            // Запускаем таймер отсчета
+            timerInterval = setInterval(() => {
+                remainingSeconds--;
+                const timerValueElement = document.getElementById('timerValue');
+                const waitTimer = document.getElementById('waitTimer');
+                
+                if (timerValueElement && waitTimer) {
+                    // Если время превышено, окрашиваем в красный
+                    if (remainingSeconds < 0) {
+                        waitTimer.classList.add('exceeded');
+                        waitTimer.querySelector('div').textContent = '⏱️ Превышено на:';
+                        // Показываем превышение в позитивном формате (abs)
+                        timerValueElement.textContent = formatTime(Math.abs(remainingSeconds));
+                    } else {
+                        timerValueElement.textContent = formatTime(remainingSeconds);
+                    }
+                }
+            }, 1000);
+        }
+
+        function showProcessingCompletionInfo(elapsedSeconds) {
+            const waitTimer = document.getElementById('waitTimer');
+            if (!waitTimer) return;
+            
+            const isExceeded = elapsedSeconds > estimatedWaitTime;
+            
+            if (isExceeded) {
+                waitTimer.classList.add('exceeded');
+                const excessSeconds = elapsedSeconds - estimatedWaitTime;
+                waitTimer.innerHTML = `
+                    <div>⏱️ Обработано за ${formatTime(elapsedSeconds)}</div>
+                    <div style="font-size: 12px; margin-top: 5px; color: inherit;">Превышено на ${formatTime(excessSeconds)}</div>
+                `;
+            } else {
+                waitTimer.classList.remove('exceeded');
+                waitTimer.innerHTML = `
+                    <div>✓ Обработано за ${formatTime(elapsedSeconds)}</div>
+                    <div style="font-size: 12px; margin-top: 5px; color: inherit;">Быстрее, чем ожидалось!</div>
+                `;
+            }
+        }
+
+        function resetUpload() {
+            uploadedVideo = null;
+            videoInput.value = '';
+            dropzone.style.display = 'block';
+            videoContainer.classList.remove('active');
+            loadingSpinner.classList.remove('active');
+            videoPlayer.src = '';
+            
+            // Очищаем таймер и переменные
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            processingStartTime = null;
+            estimatedWaitTime = null;
+            
+            infoPanel.innerHTML = `
+                <div class="info-panel-empty">
+                    <div>
+                        <div class="info-panel-empty-icon">
+                            <i class="fas fa-video"></i>
+                        </div>
+                        <p style="margin: 0;">Загрузите видео для обработки</p>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
