@@ -523,17 +523,18 @@
                 // Обновляем video-info
                 updateVideoInfo('Видео обработано');
                 
-                // Показываем информацию о прошедшем времени
-                showProcessingCompletionInfo(elapsedSeconds);
-                
                 if (data.error) {
                     alert('Ошибка: ' + data.error);
                     resetUpload();
                 } else if (data.success || data.instruction) {
                     displayInstructions(data.instruction);
+                    // Показываем информацию о прошедшем времени ПОСЛЕ отображения инструкций
+                    showProcessingCompletionInfo(elapsedSeconds);
                 } else {
                     console.warn('Неизвестный формат ответа:', data);
                     infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">Обработано: ${JSON.stringify(data)}</div></div>`;
+                    // Показываем информацию о прошедшем времени для случая неизвестного формата
+                    showProcessingCompletionInfo(elapsedSeconds);
                 }
             })
             .catch(error => {
@@ -732,25 +733,17 @@
         }
 
         function showProcessingCompletionInfo(elapsedSeconds) {
-            const waitTimer = document.getElementById('waitTimer');
-            if (!waitTimer) return;
-            
             const isExceeded = elapsedSeconds > estimatedWaitTime;
+            let message = '';
             
             if (isExceeded) {
-                waitTimer.classList.add('exceeded');
                 const excessSeconds = elapsedSeconds - estimatedWaitTime;
-                waitTimer.innerHTML = `
-                    <div>⏱️ Обработано за ${formatTime(elapsedSeconds)}</div>
-                    <div style="font-size: 12px; margin-top: 5px; color: inherit;">Превышено на ${formatTime(excessSeconds)}</div>
-                `;
+                message = `⏱️ Обработано за ${formatTime(elapsedSeconds)} (превышено на ${formatTime(excessSeconds)})`;
             } else {
-                waitTimer.classList.remove('exceeded');
-                waitTimer.innerHTML = `
-                    <div>✓ Обработано за ${formatTime(elapsedSeconds)}</div>
-                    <div style="font-size: 12px; margin-top: 5px; color: inherit;">Быстрее, чем ожидалось!</div>
-                `;
+                message = `✓ Обработано за ${formatTime(elapsedSeconds)}`;
             }
+            
+            updateVideoInfo(message);
         }
 
         function resetUpload() {
