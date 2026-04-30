@@ -29,8 +29,8 @@ for path in [cudnn_path, poppler_path, tesseract_path]:
         print(f"Warning: Path does not exist: {path}")
 
 print("Modules imported successfully")
-from .extract_doc_data import extract_doc_data
+
 from . import video_analyzer
 from .audio_processor import AudioProcessor
-
+from .extract_doc_data import DocumentExtractor
 from .llm_processor import LLMManager, DataManager

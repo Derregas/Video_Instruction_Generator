@@ -4,7 +4,7 @@ import os
 import logging
 from typing import Optional
 from ..config import AppConfig
-from ..modules import AudioProcessor, LLMManager, DataManager
+from ..modules import AudioProcessor, LLMManager, DataManager, DocumentExtractor
 from ..modules import video_analyzer
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class InstructionProcessingService:
             data_file=AppConfig.LLM.LAST_DATA_FILE_NAME
         )
 
-    def generate_instruction(self, video_path: str) -> str:
+    def generate_instruction(self, video_path: str, documents: Optional[list[str]] = None) -> str:
         """Основной метод для обработки видео и получения транскрипции."""
 
         audio_path = None
@@ -69,13 +69,31 @@ class InstructionProcessingService:
             prompt_data = self.llm_manager._format_prompt(aligned_data)
             self.debug_manager.save_data(prompt_data)
 
-            # 4. ГЕНЕРАЦИЯ LLM
-            logger.info("Шаг 4: Генерация финальной инструкции...")
+            # 4. Обработка документов
+            if documents:
+                logger.info("Шаг 4: Извлечение данных из документов...")
+                extractor = DocumentExtractor(
+                        strategy="hi_res", 
+                        save_json=True, 
+                        save_text=True, 
+                        temp_dir=AppConfig.TEMP_DIR
+                    )
+                for doc_path in documents:
+                    logger.info(f"Обработка документа: {doc_path}")
+                    doc_data = extractor.extract_doc_data(doc_path)
+                    prompt_data += f"\nДанные из документа {doc_path}:\n" + str(doc_data)
+
+            with open(os.path.join(AppConfig.TEMP_DIR, "prompt_data.txt"), "w", encoding="utf-8") as f:
+                f.write(prompt_data)
+
+            # 5. ГЕНЕРАЦИЯ LLM
+            logger.info("Шаг 5: Генерация финальной инструкции...")
             instruction = self.llm_manager.get_response(
                 system_message=AppConfig.LLM.SYSTEM_PROMPT,
                 input_data=prompt_data
             )
             return instruction
+        
         except Exception as e:
             logger.error(f"Критическая ошибка при генерации инструкции: {e}", exc_info=True)
             raise
