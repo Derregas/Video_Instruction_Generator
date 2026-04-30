@@ -77,6 +77,65 @@
             color: #6c757d;
         }
 
+        .documents-list {
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .document-item {
+            background: white;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #495057;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e9ecef;
+        }
+
+        .document-item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .document-item-size {
+            font-size: 11px;
+            color: #6c757d;
+            margin: 0 10px;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .document-remove {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            padding: 2px 5px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .document-remove:hover {
+            color: #c82333;
+        }
+
+        .documents-info {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 8px;
+            line-height: 1.3;
+        }
+
+        .documents-info strong {
+            color: #495057;
+        }
+
         .sidebar-bottom {
             flex: 1;
             display: flex;
@@ -248,6 +307,39 @@
             color: #495057;
         }
 
+        .start-button {
+            margin-top: 15px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .start-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+
+        .start-button:disabled {
+            background: #c4cde0;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .start-button-hidden {
+            display: none;
+        }
+
         /* Loading */
         .loading-spinner {
             display: none;
@@ -344,13 +436,20 @@
                 <div class="sidebar-section-title">
                     <i class="fas fa-file-upload"></i> Документы
                 </div>
-                <div class="documents-upload" title="Скоро будет доступно">
+                <div class="documents-upload" id="documentsUpload">
                     <div class="documents-upload-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>
                     <div class="documents-upload-text">
-                        Загрузка документов будет доступна позже
+                        Загрузите документы
                     </div>
+                    <input type="file" id="documentsInput" multiple accept=".pdf,.doc,.docx,.txt,.xls,.xlsx" style="display: none;">
+                </div>
+                <div class="documents-list" id="documentsList"></div>
+                <div class="documents-info">
+                    <strong>Ограничения:</strong><br>
+                    • Макс. 5 файлов<br>
+                    • Макс. 30 МБ всего
                 </div>
             </div>
 
@@ -401,8 +500,11 @@
                     <div class="video-info">
                         <strong>Файл:</strong> <span id="videoFileName"></span>
                         <br>
-                        <small style="color: #6c757d;">Видео загружено и обрабатывается...</small>
+                        <small style="color: #6c757d;">Видео загружено</small>
                     </div>
+                    <button class="start-button start-button-hidden" id="startButton">
+                        <i class="fas fa-play"></i> Начать обработку
+                    </button>
                 </div>
 
                 <!-- Загрузка -->
@@ -425,8 +527,16 @@
         const videoFileName = document.getElementById('videoFileName');
         const infoPanel = document.getElementById('infoPanel');
         const loadingSpinner = document.getElementById('loadingSpinner');
+        
+        const documentsUpload = document.getElementById('documentsUpload');
+        const documentsInput = document.getElementById('documentsInput');
+        const documentsList = document.getElementById('documentsList');
+        const startButton = document.getElementById('startButton');
 
         let uploadedVideo = null;
+        let uploadedDocuments = [];
+        let isVideoLoaded = false;
+        let isProcessing = false;
 
         // Обработчики Drag & Drop
         dropzone.addEventListener('click', () => videoInput.click());
@@ -455,6 +565,21 @@
             }
         });
 
+        // Обработчики для документов
+        documentsUpload.addEventListener('click', () => documentsInput.click());
+
+        documentsInput.addEventListener('change', (e) => {
+            handleDocumentsUpload(e.target.files);
+            // Очищаем input для возможности повторной загрузки
+            e.target.value = '';
+        });
+
+        // Обработчик кнопки "Начать обработку"
+        startButton.addEventListener('click', () => {
+            if (!isVideoLoaded || isProcessing) return;
+            startProcessing();
+        });
+
         function handleVideoUpload(file) {
             if (!file.type.startsWith('video/')) {
                 alert('Пожалуйста, выберите видео файл');
@@ -462,6 +587,7 @@
             }
 
             uploadedVideo = file;
+            isVideoLoaded = true;
             
             // Показываем видео плеер
             const reader = new FileReader();
@@ -470,22 +596,86 @@
                 videoFileName.textContent = file.name;
                 dropzone.style.display = 'none';
                 videoContainer.classList.add('active');
-                loadingSpinner.classList.add('active');
                 
-                // Получаем длительность видео
+                // Получаем длительность видео и обновляем состояние кнопки
                 videoPlayer.onloadedmetadata = () => {
-                    const videoDuration = videoPlayer.duration;
-                    const estimatedWaitTime = (videoDuration / 2) + 30;
-                    
-                    // Очищаем информационную панель и запускаем таймер
-                    clearInfoPanel();
-                    startWaitTimer(estimatedWaitTime);
-                    
-                    // Загружаем видео на сервер
-                    uploadVideoToServer(file);
+                    updateStartButtonState();
                 };
             };
             reader.readAsDataURL(file);
+        }
+
+        function handleDocumentsUpload(files) {
+            const MAX_FILES = 5;
+            const MAX_SIZE_MB = 30;
+            const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+            
+            // Проверяем общее количество файлов
+            if (uploadedDocuments.length + files.length > MAX_FILES) {
+                alert(`Максимум ${MAX_FILES} файлов. Вы можете загрузить еще ${MAX_FILES - uploadedDocuments.length}`);
+                return;
+            }
+            
+            let totalSize = uploadedDocuments.reduce((sum, doc) => sum + doc.size, 0);
+            
+            // Добавляем новые файлы с валидацией
+            for (let file of files) {
+                if (totalSize + file.size > MAX_SIZE_BYTES) {
+                    alert(`Общий размер файлов превышает ${MAX_SIZE_MB}МБ`);
+                    break;
+                }
+                uploadedDocuments.push(file);
+                totalSize += file.size;
+            }
+            
+            updateDocumentsList();
+            updateStartButtonState();
+        }
+
+        function removeDocument(index) {
+            uploadedDocuments.splice(index, 1);
+            updateDocumentsList();
+            updateStartButtonState();
+        }
+
+        function updateDocumentsList() {
+            documentsList.innerHTML = '';
+            
+            if (uploadedDocuments.length === 0) {
+                documentsList.innerHTML = '';
+                return;
+            }
+            
+            let totalSize = 0;
+            uploadedDocuments.forEach((doc, index) => {
+                totalSize += doc.size;
+                const sizeKB = (doc.size / 1024).toFixed(1);
+                const sizeDisplay = doc.size > 1024 * 1024 ? 
+                    `${(doc.size / (1024 * 1024)).toFixed(1)}MB` : 
+                    `${sizeKB}KB`;
+                
+                const item = document.createElement('div');
+                item.className = 'document-item';
+                item.innerHTML = `
+                    <span class="document-item-name" title="${doc.name}">
+                        <i class="fas fa-file"></i> ${doc.name}
+                    </span>
+                    <span class="document-item-size">${sizeDisplay}</span>
+                    <button class="document-remove" onclick="removeDocument(${index})" title="Удалить">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                documentsList.appendChild(item);
+            });
+            
+            const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+            const info = document.querySelector('.documents-info');
+            if (info) {
+                info.innerHTML = `
+                    <strong>Загружено:</strong> ${uploadedDocuments.length}/5 файлов<br>
+                    <strong>Размер:</strong> ${totalSizeMB}/30 МБ
+                `;
+            }
         }
 
         let timerInterval = null;
@@ -495,6 +685,11 @@
         function uploadVideoToServer(file) {
             const formData = new FormData();
             formData.append('video', file);
+            
+            // Добавляем документы если они есть
+            uploadedDocuments.forEach((doc) => {
+                formData.append('documents', doc);
+            });
             
             // Запоминаем время начала обработки
             processingStartTime = Date.now();
@@ -746,13 +941,59 @@
             updateVideoInfo(message);
         }
 
+        function updateStartButtonState() {
+            // Кнопка разблокируется, только если видео загружено и не идет обработка
+            if (isVideoLoaded && !isProcessing) {
+                startButton.disabled = false;
+                startButton.classList.remove('start-button-hidden');
+            } else {
+                startButton.disabled = true;
+                if (isProcessing) {
+                    startButton.classList.add('start-button-hidden');
+                }
+            }
+        }
+
+        function startProcessing() {
+            isProcessing = true;
+            startButton.classList.add('start-button-hidden');
+            
+            // Скрываем зону загрузки документов
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) {
+                documentsUploadZone.style.display = 'none';
+            }
+            
+            loadingSpinner.classList.add('active');
+            
+            const videoDuration = videoPlayer.duration;
+            const estimatedWaitTime = (videoDuration / 2) + 30;
+            
+            // Очищаем информационную панель и запускаем таймер
+            clearInfoPanel();
+            startWaitTimer(estimatedWaitTime);
+            
+            // Загружаем видео на сервер
+            uploadVideoToServer(uploadedVideo);
+        }
+
         function resetUpload() {
             uploadedVideo = null;
             videoInput.value = '';
             dropzone.style.display = 'block';
             videoContainer.classList.remove('active');
             loadingSpinner.classList.remove('active');
+            startButton.classList.add('start-button-hidden');
             videoPlayer.src = '';
+            
+            // Возвращаем зону загрузки документов
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) {
+                documentsUploadZone.style.display = 'block';
+            }
+            
+            isVideoLoaded = false;
+            isProcessing = false;
             
             // Очищаем таймер и переменные
             if (timerInterval) {
