@@ -30,7 +30,7 @@ for path in [cudnn_path, poppler_path, tesseract_path]:
 
 print("Modules imported successfully")
 
-from . import video_analyzer
-from .audio_processor import AudioProcessor
-from .extract_doc_data import DocumentExtractor
-from .llm_processor import LLMManager, DataManager
+# from . import video_analyzer
+# from .audio_processor import AudioProcessor
+# from .extract_doc_data import DocumentExtractor
+# from .llm_processor import LLMManager, DataManager

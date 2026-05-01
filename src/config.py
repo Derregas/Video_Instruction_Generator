@@ -49,6 +49,6 @@ def setup_logging():
         level=logging.INFO,
         format='%(asctime)s - [%(name)s] - %(levelname)s - %(message)s',
         filename='generator.log',
-        filemode='w',
+        filemode='a',
         encoding='utf-8'
     )

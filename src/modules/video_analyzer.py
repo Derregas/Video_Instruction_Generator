@@ -1,6 +1,5 @@
 from scenedetect import SceneManager, open_video
 from scenedetect.detectors import ContentDetector
-import cv2
 
 def get_video_scenes(video_path):
     """Находит границы смены сцен в видео."""

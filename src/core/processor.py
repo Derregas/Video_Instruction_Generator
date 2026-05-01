@@ -2,12 +2,22 @@
 
 import os
 import logging
+import multiprocessing
+from enum import Enum
 from typing import Optional
-from ..config import AppConfig
-from ..modules import AudioProcessor, LLMManager, DataManager, DocumentExtractor
+from ..config import AppConfig, setup_logging
+from src.modules.audio_processor import AudioProcessor
+from src.modules.extract_doc_data import DocumentExtractor
+from src.modules.llm_processor import LLMManager, DataManager 
 from ..modules import video_analyzer
 
 logger = logging.getLogger(__name__)
+
+class TaskType(Enum):
+    TRANSCRIPT = "video"
+    DOCS = "docs"
+    ERR_DOCS = "docs_error"
+    ERR_TRANSCRIPT = "transcript_error"
 
 class InstructionProcessingService:
     """Сервис для обработки видео и генерации инструкций.""" 
@@ -31,11 +41,62 @@ class InstructionProcessingService:
             temp_dir=AppConfig.TEMP_DIR, 
             data_file=AppConfig.LLM.LAST_DATA_FILE_NAME
         )
+    
+    @staticmethod
+    def _document_worker(q: multiprocessing.Queue, documents: list[str]):
+        # Чтобы логи из подпроцесса передавались в файл логов
+        setup_logging() 
+        logger = logging.getLogger(__name__)
+        try:
+            extractor = DocumentExtractor(
+                strategy="hi_res", 
+                save_json=True, 
+                save_text=True, 
+                temp_dir=AppConfig.TEMP_DIR
+            )
+            all_docs = []
+            for doc_path in documents:
+                logger.info(f"Обработка документа: {doc_path}")
+                doc_data = extractor.extract_doc_data(doc_path)
+                all_docs.append((doc_path, doc_data))
+            q.put((TaskType.DOCS, all_docs))
+
+        except Exception as e:
+            logger.error(f"Ошибка в процессе обработки документов: {e}")
+            q.put((TaskType.ERR_DOCS, f"\nОшибка при обработке документов: {e}"))
+
+    @staticmethod
+    def _transcript_worker(q: multiprocessing.Queue, video_path: str, temp_dir: str, scenes: list):
+        # Чтобы логи из подпроцесса передавались в файл логов
+        setup_logging() 
+        logger = logging.getLogger(__name__)
+        try:
+            processor = AudioProcessor(
+                model_size=AppConfig.AUDIO.MODEL_SIZE, 
+                device=AppConfig.AUDIO.DEVICE, 
+                compute_type=AppConfig.AUDIO.COMPUTE_TYPE
+            )
+            logger.info("Шаг 1: Извлечение аудио и транскрипция...")
+            temp_audio = os.path.join(temp_dir, "temp_audio.wav")
+            audio_path = processor.extract_audio(video_path, temp_audio)
+            transcript = processor.transcribe(audio_path)
+            logger.info("Шаг 2: Сопоставление транскрипции с видео...")
+            aligned_data = video_analyzer.align_data(transcript, scenes, video_path)
+            if not aligned_data:
+                raise ValueError("Не удалось сопоставить транскрипцию со сценами видео.")
+            q.put((TaskType.TRANSCRIPT, aligned_data))
+        except Exception as e:
+            logger.error(f"Ошибка в процессе транскрипции видео: {e}")
+            q.put((TaskType.ERR_TRANSCRIPT, str(e)))
 
     def generate_instruction(self, video_path: str, documents: Optional[list[str]] = None) -> str:
         """Основной метод для обработки видео и получения транскрипции."""
 
+        processes = []
         audio_path = None
+        documents_process = None
+        transcript_process = None
+        result_queue = multiprocessing.Queue()
 
         try:
             # 0. ПРОВЕРКА ОТЛАДКИ: Если включен режим USE_LAST_DATA, пропускаем обработку видео
@@ -47,42 +108,69 @@ class InstructionProcessingService:
                 except FileNotFoundError:
                     logger.warning("Файл кэша не найден. Переходим к полной обработке видео.")
 
-            # 1. ТРАНСКРИПЦИЯ
-            logger.info("Шаг 1: Извлечение аудио и транскрипция...")
-            # Временно сохраняем аудио в temp
-            temp_audio = os.path.join(AppConfig.TEMP_DIR, "temp_audio.wav")
-            audio_path = self.audio_processor.extract_audio(video_path, output_path=temp_audio)
-            transcript = self.audio_processor.transcribe(audio_path)
-
-            # 2. АНАЛИЗ СЦЕН
-            logger.info("Шаг 2: Поиск смен планов (сцен)...")
+            # 1. АНАЛИЗ СЦЕН
+            logger.info("Поиск смен планов (сцен)...")
             scenes = video_analyzer.get_video_scenes(video_path)
 
-            # 3. СОПОСТАВЛЕНИЕ (ALIGNMENT)
-            logger.info("Шаг 3: Связывание текста со сценами и извлечение кадров...")
-            aligned_data = video_analyzer.align_data(transcript, scenes, video_path)
+            # ПАРАЛЛЕЛЬНАЯ ОБРАБОТКА ДОКУМЕНТОВ
+            if documents:
+                logger.info("Запуск процессов для паралельной обработки документов...")
+                documents_process = multiprocessing.Process(
+                    target=self._document_worker,
+                    args=(result_queue, documents)
+                )
+                processes.append(documents_process)
+                documents_process.start()
 
-            if not aligned_data:
-                raise ValueError("Не удалось сопоставить транскрипцию со сценами видео.")
-            
+            # ТРАНСКРИПЦИЯ В ОТДЕЛЬНОМ ПОТОКЕ
+            logger.info("Трансрипция в отдельном потоке")
+            transcript_process = multiprocessing.Process(
+                target=self._transcript_worker,
+                args=(result_queue, video_path, AppConfig.TEMP_DIR, scenes)
+            )
+            processes.append(transcript_process)
+            transcript_process.start()
+
+            # ОЖИДАНИЕ ОЧЕРЕДИ
+            results = {}
+            logger.info("Ожидание данных из очереди...")
+            for _ in processes:
+                key, value = result_queue.get()
+                results[key] = value
+                logger.info(f"Получены данные из {key}")
+            # ЗАВЕРШЕНИЕ ПРОЦЕССОВ
+            logger.info("Ожидание звершения процессов...")
+            for p in processes:
+                p.join()
+            logger.info("Все процессы завершены")
+
+            aligned_data = results[TaskType.TRANSCRIPT]
+
             # Сохраняем результат сопоставления для будущей отладки
             prompt_data = self.llm_manager._format_prompt(aligned_data)
             self.debug_manager.save_data(prompt_data)
 
-            # 4. Обработка документов
-            if documents:
-                logger.info("Шаг 4: Извлечение данных из документов...")
-                extractor = DocumentExtractor(
-                        strategy="hi_res", 
-                        save_json=True, 
-                        save_text=True, 
-                        temp_dir=AppConfig.TEMP_DIR
-                    )
-                for doc_path in documents:
-                    logger.info(f"Обработка документа: {doc_path}")
-                    doc_data = extractor.extract_doc_data(doc_path)
-                    prompt_data += f"\nДанные из документа {doc_path}:\n" + str(doc_data)
+            for doc_path, doc_data in results[TaskType.DOCS]:
+                logger.info(f"Документ {doc_path} обработан. Добавляем данные к промпту.")
+                prompt_data += f"\n\n[Документ: {os.path.basename(doc_path)}]\n{doc_data}"
 
+            """4. Обработка документов
+            if documents_process:
+                logger.info("Шаг 4: Ожидание завершения обработки документов...")
+                try:
+                    key, value = result_queue.get()
+                    if key == "docs":
+                        for doc_path, doc_data in value:
+                            logger.info(f"Документ {doc_path} обработан. Добавляем данные к промпту.")
+                            prompt_data += f"\n\n[Документ: {os.path.basename(doc_path)}]\n{doc_data}"
+                    elif key == "docs_error":
+                        logger.error(f"Ошибка из воркера документов: {value}")
+                        prompt_data += f"\n\n[Ошибка обработки документов]: {value}"
+                except Exception as e:
+                    logger.error(f"Ошибка при получении данных из очереди: {e}")
+                documents_process.join()
+            TODO: Добавить таймаут на join и get, а также обработку зависания """
+            # Созранения сообщения для LLM в отдельный файл для отладки
             with open(os.path.join(AppConfig.TEMP_DIR, "prompt_data.txt"), "w", encoding="utf-8") as f:
                 f.write(prompt_data)
 
@@ -98,6 +186,12 @@ class InstructionProcessingService:
             logger.error(f"Критическая ошибка при генерации инструкции: {e}", exc_info=True)
             raise
         finally:
+            if documents_process and documents_process.is_alive():
+                documents_process.terminate()
+                logger.warning("Процесс обработки документов был принудительно завершен.")
+            if transcript_process and transcript_process.is_alive():
+                transcript_process.terminate()
+                logger.warning("Процесс обработки видео был принудительно завершен.")
             # Очистка временных файлов (аудио)
             if audio_path:
                 self._cleanup(audio_path)
