@@ -42,13 +42,14 @@ class AppConfig:
     AUDIO = AudioSettings()
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     TEMP_DIR = os.path.join(BASE_DIR, "temp")
+    CHILD_TIME_OUT: int = int(os.getenv("CHILD_TIME_OUT", 600))
 
 
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - [%(name)s] - %(levelname)s - %(message)s',
+        format='%(asctime)s - [%(processName)s] - [%(name)s] - %(levelname)s - %(message)s',
         filename='generator.log',
-        filemode='a',
+        filemode='w',
         encoding='utf-8'
     )

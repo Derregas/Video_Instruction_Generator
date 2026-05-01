@@ -3,13 +3,15 @@
 import os
 import logging
 import multiprocessing
+import logging.handlers
+
 from enum import Enum
 from typing import Optional
+from ..modules import video_analyzer
 from ..config import AppConfig, setup_logging
 from src.modules.audio_processor import AudioProcessor
 from src.modules.extract_doc_data import DocumentExtractor
 from src.modules.llm_processor import LLMManager, DataManager 
-from ..modules import video_analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +45,19 @@ class InstructionProcessingService:
         )
     
     @staticmethod
-    def _document_worker(q: multiprocessing.Queue, documents: list[str]):
+    def _setup_worker_logging(log_queue: multiprocessing.Queue):
+        handler = logging.handlers.QueueHandler(log_queue)
+        root = logging.getLogger()
+        root.setLevel(logging.INFO)
+        root.handlers = [handler]
+
+    @staticmethod
+    def _document_worker(q: multiprocessing.Queue, 
+                         lq: multiprocessing.Queue, 
+                         documents: list[str]
+                        ):
         # Чтобы логи из подпроцесса передавались в файл логов
-        setup_logging() 
+        InstructionProcessingService._setup_worker_logging(lq)
         logger = logging.getLogger(__name__)
         try:
             extractor = DocumentExtractor(
@@ -66,9 +78,14 @@ class InstructionProcessingService:
             q.put((TaskType.ERR_DOCS, f"\nОшибка при обработке документов: {e}"))
 
     @staticmethod
-    def _transcript_worker(q: multiprocessing.Queue, video_path: str, temp_dir: str, scenes: list):
+    def _transcript_worker(q: multiprocessing.Queue, 
+                           lq: multiprocessing.Queue, 
+                           video_path: str, 
+                           temp_dir: str, 
+                           scenes: list
+                           ):
         # Чтобы логи из подпроцесса передавались в файл логов
-        setup_logging() 
+        InstructionProcessingService._setup_worker_logging(lq)
         logger = logging.getLogger(__name__)
         try:
             processor = AudioProcessor(
@@ -96,7 +113,11 @@ class InstructionProcessingService:
         audio_path = None
         documents_process = None
         transcript_process = None
+        log_queue = multiprocessing.Queue()
         result_queue = multiprocessing.Queue()
+
+        listener = logging.handlers.QueueListener(log_queue, *logging.getLogger().handlers)
+        listener.start()
 
         try:
             # 0. ПРОВЕРКА ОТЛАДКИ: Если включен режим USE_LAST_DATA, пропускаем обработку видео
@@ -117,7 +138,7 @@ class InstructionProcessingService:
                 logger.info("Запуск процессов для паралельной обработки документов...")
                 documents_process = multiprocessing.Process(
                     target=self._document_worker,
-                    args=(result_queue, documents)
+                    args=(result_queue, log_queue, documents)
                 )
                 processes.append(documents_process)
                 documents_process.start()
@@ -126,7 +147,7 @@ class InstructionProcessingService:
             logger.info("Трансрипция в отдельном потоке")
             transcript_process = multiprocessing.Process(
                 target=self._transcript_worker,
-                args=(result_queue, video_path, AppConfig.TEMP_DIR, scenes)
+                args=(result_queue, log_queue, video_path, AppConfig.TEMP_DIR, scenes)
             )
             processes.append(transcript_process)
             transcript_process.start()
@@ -186,6 +207,7 @@ class InstructionProcessingService:
             logger.error(f"Критическая ошибка при генерации инструкции: {e}", exc_info=True)
             raise
         finally:
+            listener.stop()
             if documents_process and documents_process.is_alive():
                 documents_process.terminate()
                 logger.warning("Процесс обработки документов был принудительно завершен.")
