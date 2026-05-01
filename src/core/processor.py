@@ -155,10 +155,14 @@ class InstructionProcessingService:
             # ОЖИДАНИЕ ОЧЕРЕДИ
             results = {}
             logger.info("Ожидание данных из очереди...")
-            for _ in processes:
-                key, value = result_queue.get()
-                results[key] = value
-                logger.info(f"Получены данные из {key}")
+            try:
+                for _ in processes:
+                    key, value = result_queue.get(timeout=AppConfig.CHILD_TIME_OUT)
+                    results[key] = value
+                    logger.info(f"Получены данные из {key}")   
+            except multiprocessing.Queue.empty:
+                logger.error("Один из процессов завершён по таймауту")
+                
             # ЗАВЕРШЕНИЕ ПРОЦЕССОВ
             logger.info("Ожидание звершения процессов...")
             for p in processes:
