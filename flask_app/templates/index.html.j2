@@ -520,6 +520,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const TASK_ID = "{{ task_id }}";  // null если /, строка если /<task_id>
+        const TASK_STATUS = "{{ task.status if task else '' }}";
+        const TASK_RESULT = {{ task.result | tojson if task and task.result else 'null' }};
+        const TASK_ERROR = {{ task.error_message | tojson if task and task.error_message else 'null' }};
+        const TASK_VIDEO_FILENAME = "{{ task.video_filename if task else '' }}";
+        const TASK_DOCUMENT_NAMES = {{ task.document_names | tojson if task else '[]' }};
+
         const dropzone = document.getElementById('dropzone');
         const videoInput = document.getElementById('videoInput');
         const videoContainer = document.getElementById('videoContainer');
@@ -537,6 +544,274 @@
         let uploadedDocuments = [];
         let isVideoLoaded = false;
         let isProcessing = false;
+
+        let timerInterval = null;
+        let processingStartTime = null;
+        let estimatedWaitTime = null;
+
+
+        // ==================== ЕСЛИ МЫ НА СТРАНИЦЕ ЗАДАЧИ ====================
+        if (TASK_ID) {
+            // Мы на странице задачи /<task_id>
+            // Восстанавливаем UI: показываем видео и документы с сервера
+            
+            // Если есть документы в БД — показываем их в списке
+            if (TASK_DOCUMENT_NAMES.length > 0) {
+                restoreDocumentsList(TASK_DOCUMENT_NAMES);
+            }
+
+            if (TASK_STATUS === 'completed') {
+                restoreVideoAndShowResult(TASK_RESULT);
+            } else if (TASK_STATUS === 'failed') {
+                restoreVideoAndShowError(TASK_ERROR);
+            } else if (TASK_STATUS === 'processing' || TASK_STATUS === 'pending') {
+                restoreVideoForProcessing();
+                pollTaskStatus(TASK_ID);
+            }
+        }
+        // Если TASK_ID === null — обычная форма загрузки (работает как раньше)
+        // ==================== UI ФУНКЦИИ ====================
+
+        function showProcessingUI() {
+            // Скрываем dropzone
+            dropzone.style.display = 'none';
+            
+            // Скрываем контейнер видео (если был)
+            videoContainer.classList.remove('active');
+            
+            // Скрываем кнопку старта
+            startButton.classList.add('start-button-hidden');
+            
+            // Скрываем зону загрузки документов
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) documentsUploadZone.style.display = 'none';
+            
+            // Показываем спиннер
+            loadingSpinner.classList.add('active');
+            
+            // Очищаем панель инструкций, показываем "обработку"
+            infoPanel.innerHTML = `
+                <div class="info-panel-empty">
+                    <div>
+                        <div class="info-panel-empty-icon">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <p style="margin: 0;">Обработка видео...</p>
+                    </div>
+                </div>
+            `;
+            
+            isProcessing = true;
+        }
+        function loadVideoAndShowResult(result) {
+            // При загрузке страницы задачи с completed статусом
+            // Видео уже не доступно на клиенте (оно на сервере)
+            // Показываем результат и сообщение
+            
+            // Скрываем элементы загрузки
+            dropzone.style.display = 'none';
+            videoContainer.classList.remove('active');
+            startButton.classList.add('start-button-hidden');
+            
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) documentsUploadZone.style.display = 'none';
+            
+            // Показываем результат
+            displayInstructions(result);
+            
+            // Обновляем заголовок (если нужно)
+            const contentBody = document.querySelector('.content-body');
+            if (contentBody) {
+                contentBody.innerHTML = `
+                    <div class="video-container active">
+                        <div class="video-info">
+                            <strong>Статус:</strong> Обработка завершена
+                            <br>
+                            <small style="color: #6c757d;">Перейдите на <a href="/">главную</a>, чтобы загрузить новое видео</small>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        function showTaskError(errorMsg) {
+            dropzone.style.display = 'none';
+            videoContainer.classList.remove('active');
+            startButton.classList.add('start-button-hidden');
+            
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) documentsUploadZone.style.display = 'none';
+            
+            infoPanel.innerHTML = `
+                <div class="instruction-item" style="border-left-color: #dc3545;">
+                    <div class="instruction-title" style="color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle"></i> Ошибка обработки
+                    </div>
+                    <div class="instruction-description">${escapeHtml(errorMsg)}</div>
+                </div>
+            `;
+        }
+
+        function restoreDocumentsList(names) {
+            // Восстанавливаем список документов только визуально (без файлов)
+            uploadedDocuments = []; // файлов нет, они на сервере
+            
+            TASK_DOCUMENT_NAMES.forEach((name, index) => {
+                const item = document.createElement('div');
+                item.className = 'document-item';
+                item.innerHTML = `
+                    <span class="document-item-name" title="${escapeHtml(name)}">
+                        <i class="fas fa-file"></i> ${escapeHtml(name)}
+                    </span>
+                    <span class="document-item-size" style="color: #6c757d; font-style: italic;">
+                        (на сервере)
+                    </span>
+                    <span style="color: #6c757d; font-size: 11px;">
+                        <i class="fas fa-check"></i>
+                    </span>
+                `;
+                documentsList.appendChild(item);
+            });
+        }
+        function restoreVideoPlayer(filename) {
+            // Скрываем dropzone
+            dropzone.style.display = 'none';
+            
+            // Показываем контейнер видео
+            videoContainer.classList.add('active');
+            
+            // Устанавливаем src видео — теперь с сервера по API
+            videoPlayer.src = `/api/task/${TASK_ID}/video`;
+            videoFileName.textContent = filename;
+            
+            // Скрываем кнопку "Начать обработку" — она не нужна на странице задачи
+            startButton.classList.add('start-button-hidden');
+            
+            // Загружаем метаданные
+            videoPlayer.onloadedmetadata = () => {
+                isVideoLoaded = true;
+                // Если мы в процессе обработки, запускаем таймер
+                if (TASK_STATUS === 'processing' || TASK_STATUS === 'pending') {
+                    const videoDuration = videoPlayer.duration;
+                    const estimatedSeconds = (videoDuration / 2) + 30;
+                    startWaitTimer(estimatedSeconds);
+                }
+            };
+            
+            videoPlayer.load();
+        }
+        function restoreVideoForProcessing() {
+            // Видео + документы видны, показываем спиннер и начинаем polling
+            restoreVideoPlayer(TASK_VIDEO_FILENAME);
+            
+            infoPanel.innerHTML = `
+                <div class="info-panel-empty">
+                    <div>
+                        <div class="info-panel-empty-icon">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <p style="margin: 0;">Обработка видео...</p>
+                    </div>
+                </div>
+            `;
+            
+            loadingSpinner.classList.add('active');
+            isProcessing = true;
+            //startWaitTimer(60); // примерная оценка, можно убрать
+        }
+
+        function restoreVideoAndShowResult(result) {
+            // Видео + документы видны, показываем готовый результат
+            restoreVideoPlayer(TASK_VIDEO_FILENAME);
+            displayInstructions(result);
+            
+            // Обновляем status-надпись под видео
+            const videoInfo = document.querySelector('.video-info small');
+            if (videoInfo) videoInfo.textContent = '✓ Обработка завершена';
+        }
+
+        function restoreVideoAndShowError(errorMsg) {
+            // Видео + документы видны, показываем ошибку
+            restoreVideoPlayer(TASK_VIDEO_FILENAME);
+            
+            infoPanel.innerHTML = `
+                <div class="instruction-item" style="border-left-color: #dc3545;">
+                    <div class="instruction-title" style="color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle"></i> Ошибка обработки
+                    </div>
+                    <div class="instruction-description">${escapeHtml(errorMsg)}</div>
+                </div>
+            `;
+            
+            const videoInfo = document.querySelector('.video-info small');
+            if (videoInfo) videoInfo.textContent = '✗ Ошибка обработки';
+        }
+
+        // ==================== POLLING ====================
+        let pollInterval = null;
+
+        function pollTaskStatus(taskId) {
+            pollInterval = setInterval(() => {
+                fetch('/api/task/' + taskId)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (pollInterval) clearInterval(pollInterval);
+                        switch (data.status) {
+                            case 'completed':
+                                loadingSpinner.classList.remove('active');
+                                displayInstructions(data.result);
+                                const videoInfo = document.querySelector('.video-info small');
+                                if (videoInfo) videoInfo.textContent = '✓ Обработка завершена';
+                                break;
+                            case 'failed':
+                                loadingSpinner.classList.remove('active');
+                                infoPanel.innerHTML = `
+                                    <div class="instruction-item" style="border-left-color: #dc3545;">
+                                        <div class="instruction-title" style="color: #dc3545;">
+                                            <i class="fas fa-exclamation-triangle"></i> Ошибка обработки
+                                        </div>
+                                        <div class="instruction-description">${escapeHtml(data.error)}</div>
+                                    </div>
+                                `;
+                                const videoInfo2 = document.querySelector('.video-info small');
+                                if (videoInfo2) videoInfo2.textContent = '✗ Ошибка обработки';
+                                break;
+                        }
+                    })
+                    .catch(() => {});
+            }, 2000);
+        }
+
+        function startProcessing() {
+            isProcessing = true;
+            startButton.classList.add('start-button-hidden');
+            const documentsUploadZone = document.getElementById('documentsUpload');
+            if (documentsUploadZone) documentsUploadZone.style.display = 'none';
+            loadingSpinner.classList.add('active');
+            uploadVideoToServer(uploadedVideo);
+        }
+
+        function uploadVideoToServer(file) {
+            const formData = new FormData();
+            formData.append('video', file);
+            uploadedDocuments.forEach(doc => formData.append('documents', doc));
+
+            fetch('/api/process', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                // 303 redirect — браузер переходит сам, ничего делать не нужно
+                // Но если AJAX не следует редиректу автоматически:
+                if (response.redirected) {
+                    window.location.href = response.url;
+                }
+            })
+            .catch(error => {
+                loadingSpinner.classList.remove('active');
+                alert('Ошибка: ' + error.message);
+                resetUpload();
+            });
+        }
 
         // Обработчики Drag & Drop
         dropzone.addEventListener('click', () => videoInput.click());
@@ -676,75 +951,6 @@
                     <strong>Размер:</strong> ${totalSizeMB}/30 МБ
                 `;
             }
-        }
-
-        let timerInterval = null;
-        let processingStartTime = null;
-        let estimatedWaitTime = null;
-
-        function uploadVideoToServer(file) {
-            const formData = new FormData();
-            formData.append('video', file);
-            
-            // Добавляем документы если они есть
-            uploadedDocuments.forEach((doc) => {
-                formData.append('documents', doc);
-            });
-            
-            // Запоминаем время начала обработки
-            processingStartTime = Date.now();
-
-            fetch('/api/process', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                console.log('Response status:', response.status);
-                return response.json();
-            })
-            .then(data => {
-                console.log('Response data:', data);
-                loadingSpinner.classList.remove('active');
-                
-                // Вычисляем пройденное время
-                const elapsedSeconds = Math.floor((Date.now() - processingStartTime) / 1000);
-                
-                // Очищаем таймер
-                if (timerInterval) {
-                    clearInterval(timerInterval);
-                    timerInterval = null;
-                }
-                
-                // Обновляем video-info
-                updateVideoInfo('Видео обработано');
-                
-                if (data.error) {
-                    alert('Ошибка: ' + data.error);
-                    resetUpload();
-                } else if (data.success || data.instruction) {
-                    displayInstructions(data.instruction);
-                    // Показываем информацию о прошедшем времени ПОСЛЕ отображения инструкций
-                    showProcessingCompletionInfo(elapsedSeconds);
-                } else {
-                    console.warn('Неизвестный формат ответа:', data);
-                    infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">Обработано: ${JSON.stringify(data)}</div></div>`;
-                    // Показываем информацию о прошедшем времени для случая неизвестного формата
-                    showProcessingCompletionInfo(elapsedSeconds);
-                }
-            })
-            .catch(error => {
-                loadingSpinner.classList.remove('active');
-                console.error('Ошибка при запросе:', error);
-                alert('Ошибка при обработке видео: ' + error.message);
-                
-                // Очищаем таймер при ошибке
-                if (timerInterval) {
-                    clearInterval(timerInterval);
-                    timerInterval = null;
-                }
-                
-                resetUpload();
-            });
         }
 
         function displayInstructions(instructionData) {
@@ -954,28 +1160,28 @@
             }
         }
 
-        function startProcessing() {
-            isProcessing = true;
-            startButton.classList.add('start-button-hidden');
-            
-            // Скрываем зону загрузки документов
-            const documentsUploadZone = document.getElementById('documentsUpload');
-            if (documentsUploadZone) {
-                documentsUploadZone.style.display = 'none';
-            }
-            
-            loadingSpinner.classList.add('active');
-            
-            const videoDuration = videoPlayer.duration;
-            const estimatedWaitTime = (videoDuration / 2) + 30;
-            
-            // Очищаем информационную панель и запускаем таймер
-            clearInfoPanel();
-            startWaitTimer(estimatedWaitTime);
-            
-            // Загружаем видео на сервер
-            uploadVideoToServer(uploadedVideo);
-        }
+        //function startProcessing() {
+        //    isProcessing = true;
+        //    startButton.classList.add('start-button-hidden');
+        //    
+        //    // Скрываем зону загрузки документов
+        //   const documentsUploadZone = document.getElementById('documentsUpload');
+        //    if (documentsUploadZone) {
+        //        documentsUploadZone.style.display = 'none';
+        //    }
+        //    
+        //    loadingSpinner.classList.add('active');
+        //    
+        //    const videoDuration = videoPlayer.duration;
+        //    const estimatedWaitTime = (videoDuration / 2) + 30;
+        //    
+        //    // Очищаем информационную панель и запускаем таймер
+        //    clearInfoPanel();
+        //    startWaitTimer(estimatedWaitTime);
+        //    
+        //    // Загружаем видео на сервер
+        //    uploadVideoToServer(uploadedVideo);
+        //}
 
         function resetUpload() {
             uploadedVideo = null;
