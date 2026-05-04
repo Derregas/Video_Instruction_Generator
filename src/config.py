@@ -46,6 +46,14 @@ class AppConfig:
 
 
 def setup_logging():
+    # Создаём фильтр, который исключит запросы к /api/task/<task_id>
+    class PollingFilter(logging.Filter):
+        def filter(self, record):
+            # Если это запрос к /api/task/ — не логируем (возвращаем False)
+            if '/api/task/' in record.getMessage():
+                return False
+            return True
+        
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - [%(processName)s] - [%(name)s] - %(levelname)s - %(message)s',
@@ -53,3 +61,7 @@ def setup_logging():
         filemode='w',
         encoding='utf-8'
     )
+
+    # Применяем фильтр к логгеру werkzeug
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.addFilter(PollingFilter())
