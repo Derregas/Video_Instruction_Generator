@@ -5,7 +5,7 @@ import logging
 import threading
 from src.config import AppConfig
 from src.models import TaskManager, TaskStatus
-from flask_app.utils import docs_size, docs_save
+from flask_app.utils import docs_size, docs_save, generate_pdf
 from src.core.processor import InstructionProcessingService
 from flask import Blueprint, render_template, request, jsonify, redirect, send_file
 
@@ -132,5 +132,29 @@ def get_task_video(task_id):
 @main_bp.route('/api/task/<task_id>/instruction')
 def get_task_instruction(task_id):
     """Отдаёт готовую свормированную инструкцию в формате docx"""
-    # Заглушка
-    return jsonify({'error': 'Instruction file not found'}), 204
+    task = task_manager.get_task(task_id)
+    
+    if not task:
+        return jsonify({'error': 'Задача не найдена'}), 404
+    
+    if task['status'] != TaskStatus.COMPLETED.value:
+        return jsonify({'error': 'Обработка еще не завершена'}), 202
+    
+    # Путь, где будет лежать сгенерированный PDF
+    pdf_filename = f"instruction_{task_id}.pdf"
+    pdf_path = os.path.join(AppConfig.TEMP_DIR, task_id, pdf_filename)
+    try:
+        # Генерируем PDF, если он еще не создан
+        if not os.path.exists(pdf_path):
+            generate_pdf(task['result'], pdf_path)
+
+        # Отправляем файл пользователю
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=pdf_filename,
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при генерации PDF: {e}")
+        return jsonify({'error': 'Ошибка при создании файла инструкции'}), 500
