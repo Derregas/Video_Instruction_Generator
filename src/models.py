@@ -29,9 +29,18 @@ class TaskManager:
                     result TEXT,
                     error_message TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    started_at TIMESTAMP,
+                    ended_at TIMESTAMP
                 )
             ''')
+            # Получаем информацию о текущих столбцах
+            cursor = conn.execute('PRAGMA table_info(tasks)')
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'started_at' not in columns:
+                conn.execute('ALTER TABLE tasks ADD COLUMN started_at TIMESTAMP')
+            if 'ended_at' not in columns:
+                conn.execute('ALTER TABLE tasks ADD COLUMN ended_at TIMESTAMP')
             conn.execute('''
                 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)
             ''')
@@ -55,6 +64,10 @@ class TaskManager:
         if status:
             updates.append("status = ?")
             params.append(status)
+            if status == TaskStatus.PROCESSING.value:
+                updates.append("started_at = CURRENT_TIMESTAMP")
+            elif status in (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value):
+                updates.append("ended_at = CURRENT_TIMESTAMP")
         if result:
             updates.append("result = ?")
             params.append(result)

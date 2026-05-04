@@ -110,7 +110,7 @@ def _process_task_async(task_id, video_path, document_paths):
     """Выполняется в отдельном потоке: обрабатывает видео и записывает результат"""
     try:
         logger.info(f"[{task_id}] Начало обработки видео")
-        result = service.generate_instruction(video_path, documents=document_paths)
+        result = service.generate_instruction(video_path, documents=document_paths, task_id=task_id)
         task_manager.update_task(task_id, status=TaskStatus.COMPLETED.value, result=result)
         logger.info(f"[{task_id}] Обработка завершена успешно")
     except Exception as e:
@@ -128,3 +128,9 @@ def get_task_video(task_id):
     if os.path.exists(video_path):
         return send_file(video_path, mimetype='video/mp4')
     return jsonify({'error': 'Video file not found'}), 404
+
+@main_bp.route('/api/task/<task_id>/instruction')
+def get_task_instruction(task_id):
+    """Отдаёт готовую свормированную инструкцию в формате docx"""
+    # Заглушка
+    return jsonify({'error': 'Instruction file not found'}), 204

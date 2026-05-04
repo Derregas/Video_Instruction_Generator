@@ -15,6 +15,7 @@ from src.modules.llm_processor import LLMManager, DataManager
 
 logger = logging.getLogger(__name__)
 
+# Варианты сообщений в очереди
 class TaskType(Enum):
     TRANSCRIPT = "video"
     DOCS = "docs"
@@ -54,7 +55,8 @@ class InstructionProcessingService:
     @staticmethod
     def _document_worker(q: multiprocessing.Queue, 
                          lq: multiprocessing.Queue, 
-                         documents: list[str]
+                         documents: list[str],
+                         temp_dir: str
                         ):
         # Чтобы логи из подпроцесса передавались в файл логов
         InstructionProcessingService._setup_worker_logging(lq)
@@ -64,7 +66,7 @@ class InstructionProcessingService:
                 strategy="hi_res", 
                 save_json=True, 
                 save_text=True, 
-                temp_dir=AppConfig.TEMP_DIR
+                temp_dir=temp_dir
             )
             all_docs = []
             for doc_path in documents:
@@ -106,7 +108,9 @@ class InstructionProcessingService:
             logger.error(f"Ошибка в процессе транскрипции видео: {e}")
             q.put((TaskType.ERR_TRANSCRIPT, str(e)))
 
-    def generate_instruction(self, video_path: str, documents: Optional[list[str]] = None) -> str:
+    def generate_instruction(self, video_path: str, 
+                             documents: Optional[list[str]] = None, 
+                             task_id: Optional[str]=None) -> str:
         """Основной метод для обработки видео и получения транскрипции."""
 
         processes = []
@@ -132,13 +136,17 @@ class InstructionProcessingService:
             # 1. АНАЛИЗ СЦЕН
             logger.info("Поиск смен планов (сцен)...")
             scenes = video_analyzer.get_video_scenes(video_path)
+            # Путь к папке задачи
+            task_path = AppConfig.TEMP_DIR
+            if task_id:
+                task_path = os.path.join(AppConfig.TEMP_DIR, task_id)
 
             # ПАРАЛЛЕЛЬНАЯ ОБРАБОТКА ДОКУМЕНТОВ
             if documents:
                 logger.info("Запуск процессов для паралельной обработки документов...")
                 documents_process = multiprocessing.Process(
                     target=self._document_worker,
-                    args=(result_queue, log_queue, documents)
+                    args=(result_queue, log_queue, documents, task_path)
                 )
                 processes.append(documents_process)
                 documents_process.start()
@@ -147,7 +155,7 @@ class InstructionProcessingService:
             logger.info("Трансрипция в отдельном потоке")
             transcript_process = multiprocessing.Process(
                 target=self._transcript_worker,
-                args=(result_queue, log_queue, video_path, AppConfig.TEMP_DIR, scenes)
+                args=(result_queue, log_queue, video_path, task_path, scenes)
             )
             processes.append(transcript_process)
             transcript_process.start()
@@ -195,8 +203,8 @@ class InstructionProcessingService:
                     logger.error(f"Ошибка при получении данных из очереди: {e}")
                 documents_process.join()
             TODO: Добавить таймаут на join и get, а также обработку зависания """
-            # Созранения сообщения для LLM в отдельный файл для отладки
-            with open(os.path.join(AppConfig.TEMP_DIR, "prompt_data.txt"), "w", encoding="utf-8") as f:
+            # Сохранения сообщения для LLM в отдельный файл для отладки
+            with open(os.path.join(task_path, "prompt_data.txt"), "w", encoding="utf-8") as f:
                 f.write(prompt_data)
 
             # 5. ГЕНЕРАЦИЯ LLM
