@@ -12,6 +12,11 @@ const documentsInfo = document.getElementById('documentsInfo');
 const documentsList = document.getElementById('documentsList');
 const startButton = document.getElementById('startButton');
 
+const exportButton = document.getElementById('exportButton');
+const exportMenu = document.getElementById('exportMenu');
+const exportPdfBtn = document.getElementById('exportPdfBtn');
+const exportDocxBtn = document.getElementById('exportDocxBtn');
+
 let uploadedDocuments = [];
 
 let uploadedVideo = null;
@@ -54,6 +59,7 @@ function pollTaskStatus(taskId) {
                         clearInterval(pollInterval);
                         loadingSpinner.classList.remove('active');
                         displayInstructions(data.result);
+                        showExportButton();
                         const videoInfo = document.querySelector('.video-info small');
                         if (videoInfo) videoInfo.textContent = '✓ Обработка завершена';
                         break;
@@ -162,6 +168,7 @@ function restoreVideoAndShowResult(result, video) {
     // Видео + документы видны, показываем готовый результат
     restoreVideoPlayer(video);
     displayInstructions(result);
+    showExportButton();
 }
 
 // На случай ошибки, не проверялось
@@ -629,4 +636,77 @@ documentsUpload.addEventListener('drop', (e) => {
 // Кнопка "Начать обработку"
 startButton.addEventListener('click', () => {
     startProcessing();
+});
+
+// ==================== ЭКСПОРТ ИНСТРУКЦИИ ====================
+
+// Показать кнопку экспорта
+function showExportButton() {
+    const exportBtn = document.getElementById('exportButton');
+    if (exportBtn) {
+        exportBtn.disabled = false;
+    }
+}
+
+// Скрыть кнопку экспорта
+function hideExportButton() {
+    const exportBtn = document.getElementById('exportButton');
+    const exportMenu = document.getElementById('exportMenu');
+    if (exportBtn) {
+        exportBtn.disabled = true;
+    }
+    if (exportMenu) {
+        exportMenu.classList.remove('active');
+    }
+}
+
+// Открыть/закрыть меню экспорта
+function toggleExportMenu() {
+    const exportMenu = document.getElementById('exportMenu');
+    if (exportMenu) {
+        exportMenu.classList.toggle('active');
+    }
+}
+
+// Закрыть меню экспорта
+function closeExportMenu() {
+    const exportMenu = document.getElementById('exportMenu');
+    if (exportMenu) {
+        exportMenu.classList.remove('active');
+    }
+}
+
+// Экспортировать в указанном формате
+function exportInstruction(format) {
+    if (TASK_ID && TASK_ID !== 'None') {
+        window.location.href = `/api/task/${TASK_ID}/instruction?format=${format}`;
+        closeExportMenu();
+    }
+}
+
+// Обработчики для кнопок экспорта
+if (exportButton) {
+    exportButton.addEventListener('click', () => {
+        toggleExportMenu();
+    });
+}
+
+if (exportPdfBtn) {
+    exportPdfBtn.addEventListener('click', () => {
+        exportInstruction('.pdf');
+    });
+}
+
+if (exportDocxBtn) {
+    exportDocxBtn.addEventListener('click', () => {
+        exportInstruction('.docx');
+    });
+}
+
+// Закрыть меню при клике вне его
+document.addEventListener('click', (e) => {
+    const exportSection = document.getElementById('exportButton')?.parentElement;
+    if (exportSection && !exportSection.contains(e.target)) {
+        closeExportMenu();
+    }
 });

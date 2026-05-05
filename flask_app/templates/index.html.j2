@@ -388,6 +388,105 @@
             color: #dc3545;
         }
 
+        /* Экспорт инструкции */
+        .export-section {
+            padding: 15px 20px;
+            border-top: 1px solid #e9ecef;
+            position: relative;
+        }
+
+        .export-button {
+            width: 100%;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .export-button:not(:disabled) {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .export-button:not(:disabled):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .export-button:disabled {
+            background: #c4cde0;
+            cursor: not-allowed;
+        }
+
+        .export-menu {
+            display: none;
+            position: absolute;
+            bottom: 65px;
+            left: 20px;
+            right: 20px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .export-menu.active {
+            display: block;
+        }
+
+        .export-menu-title {
+            padding: 12px 15px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+
+        .export-format-btn {
+            width: 100%;
+            padding: 12px 15px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid #e9ecef;
+            text-align: left;
+            font-size: 13px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .export-format-btn:last-child {
+            border-bottom: none;
+        }
+
+        .export-format-btn:hover {
+            background: #f8f9fa;
+            color: #667eea;
+        }
+
+        .export-format-btn i {
+            font-size: 14px;
+        }
+
         /* Утилиты */
         .text-truncate-3 {
             display: -webkit-box;
@@ -468,6 +567,24 @@
                             </div>
                             <p style="margin: 0;">Загрузите видео для обработки</p>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Кнопка экспорта инструкции -->
+                <div class="export-section">
+                    <button class="export-button" id="exportButton" disabled title="Экспортировать инструкцию">
+                        <i class="fas fa-download"></i> Экспорт инструкции
+                    </button>
+                    
+                    <!-- Меню выбора формата -->
+                    <div class="export-menu" id="exportMenu">
+                        <div class="export-menu-title">Выберите формат сохранения</div>
+                        <button class="export-format-btn" id="exportPdfBtn">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        <button class="export-format-btn" id="exportDocxBtn">
+                            <i class="fas fa-file-word"></i> DOCX
+                        </button>
                     </div>
                 </div>
             </div>
