@@ -5,6 +5,7 @@ python-dotenv==1.2.1
 flask==3.0.0
 unstructured[all-docs] --prefer-binary
 fpdf==1.7.2
+docx
 
 # Библиотеки NVIDIA для работы CUDA 12 на Windows без поиска DLL
 nvidia-cublas-cu12==12.9.*

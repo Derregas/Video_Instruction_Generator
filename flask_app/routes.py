@@ -5,7 +5,7 @@ import logging
 import threading
 from src.config import AppConfig
 from src.models import TaskManager, TaskStatus
-from flask_app.utils import docs_size, docs_save, generate_pdf
+from flask_app.utils import docs_size, docs_save, DocumentCreator
 from src.core.processor import InstructionProcessingService
 from flask import Blueprint, render_template, request, jsonify, redirect, send_file
 
@@ -132,6 +132,9 @@ def get_task_video(task_id):
 @main_bp.route('/api/task/<task_id>/instruction')
 def get_task_instruction(task_id):
     """Отдаёт готовую свормированную инструкцию в формате docx"""
+    # Получаем формат из запроса. Если не указан, ставим 'pdf' по умолчанию
+    doc_format = request.args.get('format', 'pdf').lower()
+
     task = task_manager.get_task(task_id)
     
     if not task:
@@ -141,18 +144,16 @@ def get_task_instruction(task_id):
         return jsonify({'error': 'Обработка еще не завершена'}), 202
     
     # Путь, где будет лежать сгенерированный PDF
-    pdf_filename = f"instruction_{task_id}.pdf"
-    pdf_path = os.path.join(AppConfig.TEMP_DIR, task_id, pdf_filename)
-    try:
-        # Генерируем PDF, если он еще не создан
-        if not os.path.exists(pdf_path):
-            generate_pdf(task['result'], pdf_path)
+    fileName = f"instruction_{task_id}.{doc_format}"
+    filePath = os.path.join(AppConfig.TEMP_DIR, task_id, fileName)
 
+    try:
+        DocumentCreator.create(task['result'], filePath)
         # Отправляем файл пользователю
         return send_file(
-            pdf_path,
+            filePath,
             as_attachment=True,
-            download_name=pdf_filename,
+            download_name=fileName,
             mimetype='application/pdf'
         )
     except Exception as e:
