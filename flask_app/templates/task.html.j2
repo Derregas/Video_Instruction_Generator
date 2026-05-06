@@ -220,6 +220,9 @@
             background: white;
             border-bottom: 1px solid #e9ecef;
             padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .content-header-title {
@@ -227,6 +230,27 @@
             font-weight: 600;
             color: #212529;
             margin: 0;
+        }
+
+        .back-button {
+            background: none;
+            border: 1px solid #dee2e6;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+
+        .back-button:hover {
+            background: #f8f9fa;
+            border-color: #667eea;
+            color: #667eea;
         }
 
         .content-body {
@@ -596,6 +620,9 @@
                 <h1 class="content-header-title">
                     <i class="fas fa-film" style="color: #667eea;"></i> Video Instruction Generator
                 </h1>
+                <a href="/" class="back-button">
+                    <i class="fas fa-arrow-left"></i> К списку
+                </a>
             </div>
 
             <div class="content-body">

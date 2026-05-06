@@ -15,17 +15,29 @@ main_bp = Blueprint('main', __name__)
 service = InstructionProcessingService()
 
 @main_bp.route('/')
-@main_bp.route('/<task_id>')
-def index(task_id=None):
+@main_bp.route('/home')
+def index():
+    """Главная страница со списком всех задач"""
+    tasks = task_manager.get_all_tasks(limit=50)
+    return render_template('tasks_list.html.j2', tasks=tasks)
+
+@main_bp.route('/task')
+def new_task():
+    """Пустая форма загрузки видео"""
+    return render_template('task.html.j2', task_id=None, task=None)
+
+@main_bp.route('/task/<task_id>')
+def task(task_id=None):
     """
-    Одинаковый шаблон для:
-      - '/'  → пустая форма загрузки (task_id=None)
-      - '/<task_id>' → страница статуса задачи
+    Страница задачи с результатами обработки
     """
     task = None
     if task_id:
         task = task_manager.get_task(task_id)
-    return render_template('index.html.j2', task_id=task_id, task=task)
+        if not task:
+            logger.error(f"Задача {task_id} не найдена")
+            return jsonify({'error': 'Указанная задача не найдена'}), 400
+    return render_template('task.html.j2', task_id=task_id, task=task)
 
 @main_bp.route('/api/process', methods=['POST'])
 def process_video():
@@ -82,7 +94,7 @@ def process_video():
     thread.start()
 
     # Перенаправляем пользователя незаметно
-    return redirect(f'/{task_id}', code=303)
+    return redirect(f'/task/{task_id}', code=303)
 
 # Периодический опрос статуса задачи
 @main_bp.route('/api/task/<task_id>')

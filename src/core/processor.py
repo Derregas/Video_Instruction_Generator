@@ -182,10 +182,10 @@ class InstructionProcessingService:
             # Сохраняем результат сопоставления для будущей отладки
             prompt_data = self.llm_manager._format_prompt(aligned_data)
             self.debug_manager.save_data(prompt_data)
-
-            for doc_path, doc_data in results[TaskType.DOCS]:
-                logger.info(f"Документ {doc_path} обработан. Добавляем данные к промпту.")
-                prompt_data += f"\n\n[Документ: {os.path.basename(doc_path)}]\n{doc_data}"
+            if (TaskType.DOCS in results):
+                for doc_path, doc_data in results[TaskType.DOCS]:
+                    logger.info(f"Документ {doc_path} обработан. Добавляем данные к промпту.")
+                    prompt_data += f"\n\n[Документ: {os.path.basename(doc_path)}]\n{doc_data}"
 
             """4. Обработка документов
             if documents_process:

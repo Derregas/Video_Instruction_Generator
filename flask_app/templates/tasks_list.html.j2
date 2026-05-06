@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Instruction Generator - Список задач</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container-tasks {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 80vh;
+        }
+
+        .tasks-header {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tasks-header-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #212529;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .tasks-header-title i {
+            color: #667eea;
+            font-size: 28px;
+        }
+
+        .new-task-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .new-task-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+
+        .tasks-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .tasks-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #adb5bd;
+            text-align: center;
+        }
+
+        .tasks-empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .tasks-empty-text {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .tasks-empty-subtext {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .task-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 150px;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .task-card:hover {
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .task-id {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 12px;
+            word-break: break-all;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        .task-info {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .task-filename {
+            font-weight: 500;
+            color: #212529;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            width: fit-content;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .task-status.pending {
+            background: #e7f3ff;
+            color: #0066cc;
+        }
+
+        .task-status.pending::before {
+            content: '\f110';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 400;
+        }
+
+        .task-status.processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .task-status.processing::before {
+            content: '\f110';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .task-status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .task-status.completed::before {
+            content: '\f05d';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 400;
+        }
+
+        .task-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .task-status.failed::before {
+            content: '\f057';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 400;
+        }
+
+        .task-documents {
+            font-size: 12px;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .task-documents i {
+            color: #adb5bd;
+        }
+
+        .task-date {
+            font-size: 12px;
+            color: #6c757d;
+            white-space: nowrap;
+        }
+
+        .task-arrow {
+            color: #667eea;
+            font-size: 16px;
+            justify-self: end;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .task-card:hover .task-arrow {
+            opacity: 1;
+            transform: translateX(4px);
+        }
+
+        .tasks-filter {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .tasks-header {
+                flex-direction: column;
+                gap: 15px;
+                padding: 20px;
+            }
+
+            .task-card {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .task-id {
+                display: none;
+            }
+
+            .task-filename {
+                font-weight: 600;
+            }
+
+            .task-documents {
+                grid-column: 1;
+            }
+
+            .task-date {
+                grid-column: 1;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .task-arrow {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-tasks">
+        <div class="tasks-header">
+            <h1 class="tasks-header-title">
+                <i class="fas fa-list-check"></i> Все задачи
+            </h1>
+            <a href="/task" class="new-task-btn">
+                <i class="fas fa-plus"></i> Новое видео
+            </a>
+        </div>
+
+        <div class="tasks-content">
+            {% if tasks %}
+                <div class="tasks-filter">
+                    <button class="filter-btn active" onclick="filterTasks('all')">
+                        <i class="fas fa-list"></i> Все
+                    </button>
+                    <button class="filter-btn" onclick="filterTasks('pending')">
+                        <i class="fas fa-hourglass-start"></i> Ожидание
+                    </button>
+                    <button class="filter-btn" onclick="filterTasks('processing')">
+                        <i class="fas fa-spinner"></i> Обработка
+                    </button>
+                    <button class="filter-btn" onclick="filterTasks('completed')">
+                        <i class="fas fa-check-circle"></i> Завершено
+                    </button>
+                    <button class="filter-btn" onclick="filterTasks('failed')">
+                        <i class="fas fa-times-circle"></i> Ошибка
+                    </button>
+                </div>
+
+                <div class="tasks-list" id="tasksList">
+                    {% for task in tasks %}
+                        <div class="task-card task-item" data-status="{{ task.status }}" onclick="goToTask('{{ task.id }}')">
+                            <div class="task-id" title="{{ task.id }}">{{ task.id }}</div>
+                            <div class="task-info">
+                                <div class="task-filename" title="{{ task.video_filename }}">
+                                    <i class="fas fa-film"></i> {{ task.video_filename }}
+                                </div>
+                                <div class="task-status {{ task.status }}">
+                                    {% if task.status == 'pending' %}
+                                        Ожидание
+                                    {% elif task.status == 'processing' %}
+                                        Обработка
+                                    {% elif task.status == 'completed' %}
+                                        Завершено
+                                    {% elif task.status == 'failed' %}
+                                        Ошибка
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="task-documents">
+                                {% if task.document_names %}
+                                    <i class="fas fa-file"></i> {{ task.document_names | length }} документ{{ 'ов' if task.document_names | length != 1 else '' }}
+                                {% else %}
+                                    <span style="color: #adb5bd;">Нет документов</span>
+                                {% endif %}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div class="task-date">
+                                    {{ task.created_at[:10] if task.created_at else 'N/A' }}
+                                </div>
+                                <div class="task-arrow">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="tasks-empty">
+                    <div class="tasks-empty-icon">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                    <div class="tasks-empty-text">Нет задач</div>
+                    <div class="tasks-empty-subtext">Создайте новую задачу для обработки видео</div>
+                    <a href="/task" class="new-task-btn">
+                        <i class="fas fa-plus"></i> Создать задачу
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        function goToTask(taskId) {
+            window.location.href = `/task/${taskId}`;
+        }
+
+        function filterTasks(status) {
+            const items = document.querySelectorAll('.task-item');
+            const buttons = document.querySelectorAll('.filter-btn');
+
+            // Обновляем активную кнопку
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.filter-btn').classList.add('active');
+
+            // Фильтруем элементы
+            if (status === 'all') {
+                items.forEach(item => item.style.display = 'grid');
+            } else {
+                items.forEach(item => {
+                    if (item.dataset.status === status) {
+                        item.style.display = 'grid';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

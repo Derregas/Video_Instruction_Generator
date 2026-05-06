@@ -110,4 +110,16 @@ class TaskManager:
                 'SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?',
                 (limit,)
             ).fetchall()
-            return [dict(r) for r in rows]
+            tasks = []
+            for row in rows:
+                task = dict(row)
+                # Распарсиваем JSON-строки в объекты Python
+                if task.get('document_names'):
+                    try:
+                        task['document_names'] = json.loads(task['document_names'])
+                    except json.JSONDecodeError:
+                        task['document_names'] = []
+                else:
+                    task['document_names'] = []
+                tasks.append(task)
+            return tasks
