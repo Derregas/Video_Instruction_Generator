@@ -219,8 +219,7 @@ function displayInstructions(instructionData) {
             dataArray = instructions;
             console.log('Найден прямой массив');
         } else if (typeof instructions === 'object' && instructions !== null) {
-            // Ищем первый массив в объекте (может быть instructions, steps, data, items и т.д.)
-            dataArray = Object.values(instructions).find(v => Array.isArray(v));
+            dataArray = instructions.steps
             if (dataArray) {
                 console.log('Найден массив внутри объекта');
             }
@@ -693,13 +692,13 @@ if (exportButton) {
 
 if (exportPdfBtn) {
     exportPdfBtn.addEventListener('click', () => {
-        exportInstruction('.pdf');
+        exportInstruction('pdf');
     });
 }
 
 if (exportDocxBtn) {
     exportDocxBtn.addEventListener('click', () => {
-        exportInstruction('.docx');
+        exportInstruction('docx');
     });
 }
 

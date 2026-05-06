@@ -1,3 +1,4 @@
+import os
 from scenedetect import SceneManager, open_video
 from scenedetect.detectors import ContentDetector
 
@@ -30,7 +31,7 @@ def find_best_scene_for_speech(speech_segment, scenes):
             
     return best_scene, best_idx
 
-def align_data(transcript, scenes, video_path):
+def align_data(transcript, scenes, video_path, temp_path):
     final_steps = []
     
     for i, text_block in enumerate(transcript):
@@ -45,13 +46,14 @@ def align_data(transcript, scenes, video_path):
         shot_time = (max(text_block['start'], s1) + 
                      min(text_block['end'], s2)) / 2
         
-        img_path = f"temp/step_{i}.jpg"
+        img_name = f"step_{i}.jpg"
+        img_path = os.path.join(temp_path, img_name)
         extract_keyframe(video_path, shot_time, img_path)
         
         final_steps.append({
             "step": i + 1,
             "text": text_block['text'],
-            "image": img_path,
+            "image": img_name,
             "scene_id": scene_idx,
             "shot_time": shot_time,
             "scene_start": s1,

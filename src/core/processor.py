@@ -100,7 +100,7 @@ class InstructionProcessingService:
             audio_path = processor.extract_audio(video_path, temp_audio)
             transcript = processor.transcribe(audio_path)
             logger.info("Шаг 2: Сопоставление транскрипции с видео...")
-            aligned_data = video_analyzer.align_data(transcript, scenes, video_path)
+            aligned_data = video_analyzer.align_data(transcript, scenes, video_path, temp_dir)
             if not aligned_data:
                 raise ValueError("Не удалось сопоставить транскрипцию со сценами видео.")
             q.put((TaskType.TRANSCRIPT, aligned_data))

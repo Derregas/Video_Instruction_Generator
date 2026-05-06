@@ -2,6 +2,7 @@ import os
 import ollama
 import logging
 from abc import ABC, abstractmethod
+from src.modules.response_schema import Instruction
 from typing import Any, Dict, List, Optional
 
 """
@@ -87,7 +88,6 @@ class DataManager():
         with open(self.data_file, "r", encoding="utf-8") as f:
             return f.read()
 
-
 class OllamaClient(BaseLLMClient):
     """
     Реализация взаимодействия с локальными моделями через Ollama.
@@ -115,7 +115,7 @@ class OllamaClient(BaseLLMClient):
             model=self.model_name, 
             system=system_message,
             prompt=user_data, 
-            format='json',
+            format=Instruction.model_json_schema(),
             keep_alive=1,
             stream=True,
             think=True,
@@ -163,7 +163,6 @@ class OllamaClient(BaseLLMClient):
         
         return full_response
 
-
 class GeminiClient(BaseLLMClient):
     """
     Реализация взаимодействия с Google Gemini API.
@@ -177,7 +176,6 @@ class GeminiClient(BaseLLMClient):
         # Настраивает GenerationConfig для получения JSON (response_mime_type)
         # Отправляет данные через genai.GenerativeModel
         pass
-
 
 class LLMManager:
     """
@@ -218,7 +216,6 @@ class LLMManager:
             prompt = str(input_data)
             
         return self.client.process_request(system_message, prompt)
-
 
 def generate_formal_instruction(raw_data: Optional[list] = None):
     """ФТ-5: Преобразование черновых шагов в чистовую инструкцию (для обратной совместимости)."""

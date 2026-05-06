@@ -32,8 +32,9 @@ def docs_save(docs: list[FileStorage], request_temp_dir: str) -> list[str]:
 
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 12)
-        self.cell(0, 10, 'Manual PC Assembly', 0, 1, 'C')
+        pass
+        #self.set_font('Arial', 'B', 12)
+        #self.cell(0, 10, 'Manual PC Assembly', 0, 1, 'C')
 
 class BaseDocument(ABC):
     base_fonts_path = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
@@ -99,24 +100,37 @@ class DocxDocument(BaseDocument):
         section.left_margin = Cm(2.5)
         section.right_margin = Cm(1.5)
 
-        title = doc.add_heading('Инструкция по сборке', 0)
+        title = doc.add_heading(json_content['name'], 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for run in title.runs:
             run.font.name = 'Times New Roman'
 
-        for step in json_content['instructions']:
+        key_words_h = doc.add_heading("Ключевые слова:", level=2)
+        for run in key_words_h.runs:
+            run.font.name = 'Times New Roman'
+        words = ", ".join(json_content['key_words'])
+        k_words = doc.add_paragraph(words)
+        k_words.paragraph_format.first_line_indent = Cm(0.75)
+
+        description_h = doc.add_heading("Назначение", level=1)
+        for run in description_h.runs:
+            run.font.name = 'Times New Roman'
+        desc_p = doc.add_paragraph(json_content['description'])
+        desc_p.paragraph_format.first_line_indent = Cm(0.75)
+
+        for index, step in enumerate(json_content['steps'], start=1):
             # Добавляем заголовок шага
-            heading = doc.add_heading(step['title'], level=1)
+            heading = doc.add_heading(f"{index}. {step['title']}", level=1)
             for run in heading.runs:
                 run.font.name = 'Times New Roman'
 
             # Описание
             p = doc.add_paragraph(step['description'])
-            p.paragraph_format.first_line_indent = Cm(1.25) # Красная строка
+            p.paragraph_format.first_line_indent = Cm(0.75) # Красная строка
             p.paragraph_format.space_after = Pt(10)         # Отступ после абзаца
             
             # ВСТАВКА КАРТИНКИ
-            img_path = os.path.abspath(step['best_image_id'])
+            img_path = os.path.join(os.path.dirname(filename), step['best_image_id'])
             
             if os.path.exists(img_path):
                 try:
@@ -163,20 +177,45 @@ class PdfDocument(BaseDocument):
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
 
-        for step in json_content['instructions']:
-            if pdf.get_y() > 240: 
+        # Заголовок
+        pdf.set_font('TimesNewRoman', 'B', 16)
+        pdf.cell(0, 10, json_content['name'], 0, 1, 'C')
+        # Ключевые слова
+        pdf.set_font('TimesNewRoman', '', 14)
+        pdf.cell(0, 10, "Ключевые слова:", ln=True)
+        pdf.set_font('TimesNewRoman', '', 13)
+        pdf.set_x(pdf.l_margin + 8)
+        words = ", ".join(json_content['key_words'])
+        pdf.multi_cell(0, 8, words)
+        pdf.ln(3)
+        pdf.set_x(pdf.l_margin)
+        # Введение
+        pdf.set_font('TimesNewRoman', 'B', 14)
+        pdf.cell(0, 10, "Назначение", ln=True)
+        pdf.set_font('TimesNewRoman', '', 14)
+        pdf.multi_cell(0, 8, json_content['description'])
+        pdf.ln(3)
+
+        for index, step in enumerate(json_content['steps'], start=1):
+            y = pdf.get_y()
+            if pdf.get_y() > (297 - 50): 
                 pdf.add_page()
 
             pdf.set_font('TimesNewRoman', 'B', 14)
-            pdf.cell(0, 10, step['title'], ln=True)
+            pdf.cell(0, 10, f"{index}. \t{step['title']}", ln=True)
 
             pdf.set_font('TimesNewRoman', '', 14)
             pdf.multi_cell(0, 8, step['description'])
             pdf.ln(3)
 
+            if pdf.get_y() > (270 - 120): 
+                pdf.add_page()
+
             # Вставляем картинку
-            pdf.image(step['best_image_id'], x=10, w=100)
-            pdf.ln(1)
+            img_path = os.path.join(os.path.dirname(filename), step['best_image_id'])
+            if os.path.exists(img_path):
+                pdf.image(img_path, x=10, w=100)
+                pdf.ln(1)
 
             pdf.set_font('TimesNewRoman', 'I', 10)
             pdf.cell(0, 10, f"Время: {self.format_time(float(step['start_time']))} - {self.format_time(float(step['end_time']))}", ln=True)
