@@ -54,7 +54,7 @@ class Task:
     
     """Методы для явного указания статуса"""
     def mark_processing(self):
-        if self.status != TaskStatus.PENDING:
+        if self.status not in (TaskStatus.PENDING, TaskStatus.PROCESSING):
             raise ValueError(
                 f"Невозможно начать задачу со статусом {self.status.value}."
                 f"Только задачи со статусом {TaskStatus.PENDING.value} могут быть начаты.")

@@ -6,7 +6,7 @@ import threading
 from src.config import AppConfig
 from flask_app.utils import docs_size, docs_save, DocumentCreator
 from src.core.processor import InstructionProcessingService
-from flask import Blueprint, render_template, request, jsonify, redirect, send_file
+from flask import Blueprint, render_template, request, jsonify, redirect, send_file, current_app
 # БД
 from src.domain.entities import Task, TaskStatus
 from src.domain.repositories import ITaskRepository, IUserRepository
@@ -65,6 +65,9 @@ def process_video():
             logger.error("Файл видео не выбран")
             return jsonify({'error': 'Файл видео не выбран'}), 400
         
+        task_repo = current_app.config['task_repo']
+        task_queue = current_app.config['task_queue']
+
         # Создаём uuid
         task_id = str(uuid.uuid4())[:8]
         request_temp_dir = os.path.join(AppConfig.TEMP_DIR, task_id)
@@ -103,17 +106,19 @@ def process_video():
             video_filename=video.filename, # type: ignore
             document_names=document_names
         )
-        # Записываем задачу в БД
-        task_repository.create(new_task)
+        # Записываем задачу в БД и очередь
+        task_repo.create(new_task)
+        task_queue.enqueue(task_id)
+        logger.info(f"Задача {task_id} добавлена в очередь обработки")
         # task_manager.create_task(task_id, video.filename, document_names)
         
         # Запускаем обработку в фоне
-        thread = threading.Thread(
-            target=_process_task_async,
-            args=(task_id, video_path, document_paths),
-            daemon=True
-        )
-        thread.start()
+        # thread = threading.Thread(
+        #     target=_process_task_async,
+        #     args=(task_id, video_path, document_paths),
+        #     daemon=True
+        # )
+        # thread.start()
 
         # Перенаправляем пользователя незаметно
         return redirect(f'/task/{task_id}', code=303)
@@ -150,50 +155,50 @@ def get_task_status(task_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
-def _process_task_async(task_id, video_path, document_paths):
-    """Выполняется в отдельном потоке: обрабатывает видео и записывает результат"""
-    task = None
-    try:
-        logger.info(f"[{task_id}] Начало обработки видео")
-        # Поучаем объект задачи
-        task = task_repository.get_by_id(task_id)
-        # Выводим ошибку, если пусто
-        if not task: 
-            raise TaskNotFoundError(f"Задача {task_id} не найдена в БД")
-        # Отмечаем, как обработка
-        task.mark_processing()
-        task_repository.update(task)
-        #task_manager.update_task(task_id, status=TaskStatus.PROCESSING.value)
-        result = service.generate_instruction(video_path, documents=document_paths, task_id=task_id)
-        # Отмечаем, как завершено
-        task.mark_completed(result)
-        task_repository.update(task)
-        logger.info(f"[{task_id}] Обработка завершена успешно")
-    except (TaskNotFoundError, DatabaseError) as e:
-        # Специфичные ошибки
-        logger.error(f"[{task_id}] Ошибка обработки: {str(e)}", exc_info=True)
-        _mark_task_failed(task_id, str(e))
-    except Exception as e:
-        logger.error(f"[{task_id}] Ошибка: {str(e)}", exc_info=True)
-        _mark_task_failed(task_id, str(e))
+# def _process_task_async(task_id, video_path, document_paths):
+#     """Выполняется в отдельном потоке: обрабатывает видео и записывает результат"""
+#     task = None
+#     try:
+#         logger.info(f"[{task_id}] Начало обработки видео")
+#         # Поучаем объект задачи
+#         task = task_repository.get_by_id(task_id)
+#         # Выводим ошибку, если пусто
+#         if not task: 
+#             raise TaskNotFoundError(f"Задача {task_id} не найдена в БД")
+#         # Отмечаем, как обработка
+#         task.mark_processing()
+#         task_repository.update(task)
+#         #task_manager.update_task(task_id, status=TaskStatus.PROCESSING.value)
+#         result = service.generate_instruction(video_path, documents=document_paths, task_id=task_id)
+#         # Отмечаем, как завершено
+#         task.mark_completed(result)
+#         task_repository.update(task)
+#         logger.info(f"[{task_id}] Обработка завершена успешно")
+#     except (TaskNotFoundError, DatabaseError) as e:
+#         # Специфичные ошибки
+#         logger.error(f"[{task_id}] Ошибка обработки: {str(e)}", exc_info=True)
+#         _mark_task_failed(task_id, str(e))
+#     except Exception as e:
+#         logger.error(f"[{task_id}] Ошибка: {str(e)}", exc_info=True)
+#         _mark_task_failed(task_id, str(e))
 
-def _mark_task_failed(task_id: str, error_message: str) -> bool:
-    """Безопасно отмечает задачу как ошибку"""
-    try:
-        task = task_repository.get_by_id(task_id)
-        if not task:
-            logger.error(f"[{task_id}] Не удалось найти задачу для обновления статуса")
-            return False
-        task.mark_failed(error_message)
-        task_repository.update(task)
-        logger.info(f"[{task_id}] Статус обновлен на FAILED")
-        return True
-    except DatabaseError as e:
-        logger.error(f"[{task_id}] Ошибка БД при обновлении статуса: {e}")
-        return False   
-    except Exception as e:
-        logger.critical(f"[{task_id}] Неожиданная ошибка при обновлении статуса: {e}", exc_info=True)
-        return False
+# def _mark_task_failed(task_id: str, error_message: str) -> bool:
+#     """Безопасно отмечает задачу как ошибку"""
+#     try:
+#         task = task_repository.get_by_id(task_id)
+#         if not task:
+#             logger.error(f"[{task_id}] Не удалось найти задачу для обновления статуса")
+#             return False
+#         task.mark_failed(error_message)
+#         task_repository.update(task)
+#         logger.info(f"[{task_id}] Статус обновлен на FAILED")
+#         return True
+#     except DatabaseError as e:
+#         logger.error(f"[{task_id}] Ошибка БД при обновлении статуса: {e}")
+#         return False   
+#     except Exception as e:
+#         logger.critical(f"[{task_id}] Неожиданная ошибка при обновлении статуса: {e}", exc_info=True)
+#         return False
 
 @main_bp.route('/api/task/<task_id>/video')
 def get_task_video(task_id):

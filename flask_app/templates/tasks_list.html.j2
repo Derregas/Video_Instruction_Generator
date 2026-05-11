@@ -177,7 +177,8 @@
         .task-status.pending::before {
             content: '\f110';
             font-family: 'Font Awesome 6 Free';
-            font-weight: 400;
+            font-weight: 900;
+            animation: spin 2s linear infinite;
         }
 
         .task-status.processing {
@@ -371,7 +372,7 @@
                                 {% endif %}
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div class="task-date">
+                                <div class="task-date" data-utc="{{ task.created_at }}">
                                     {{ task.created_at if task.created_at else 'N/A' }}
                                 </div>
                                 <div class="task-arrow">
@@ -422,6 +423,34 @@
                 });
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.task-date').forEach(function(el) {
+                let rawDate = el.getAttribute('data-utc');
+                if (!rawDate || rawDate === 'None' || rawDate === 'N/A') return;
+
+                // Приводим форматы к ISO (заменяем пробел на T, если нужно)
+                // И добавляем 'Z', чтобы браузер понял, что это UTC
+                let isoDate = rawDate.replace(' ', 'T');
+                if (!isoDate.endsWith('Z') && !isoDate.includes('+')) {
+                    isoDate += 'Z';
+                }
+
+                const date = new Date(isoDate);
+                
+                if (!isNaN(date)) {
+                    // Форматируем дату (например: 11.05.2026, 11:27:15)
+                    el.textContent = date.toLocaleString('ru-RU', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                }
+            });
+        });
     </script>
 </body>
 </html>
