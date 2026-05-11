@@ -665,7 +665,7 @@
 
     <script>
         const TASK_ID = "{{ task_id }}";  // null если /, строка если /<task_id>
-        const TASK_STATUS = "{{ task.status if task else '' }}";
+        const TASK_STATUS = "{{ task.status.value if task else '' }}";
         const TASK_RESULT = {{ task.result | tojson if task and task.result else 'null' }};
         const TASK_ERROR = {{ task.error_message | tojson if task and task.error_message else 'null' }};
         const TASK_VIDEO_FILENAME = "{{ task.video_filename if task else '' }}";

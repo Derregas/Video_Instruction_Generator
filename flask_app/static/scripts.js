@@ -129,8 +129,9 @@ function restoreVideoPlayer(filename) {
             let remainingSeconds = 0
             if(TASK_START_TIME){
                 const now = new Date();
+                const start = new Date(TASK_START_TIME)
                 // Разница в секундах
-                const secondsPassed = (now - parseUTCDate(TASK_START_TIME)) / 1000;
+                const secondsPassed = (now - start) / 1000;
                 // 3. Вычисляем остаток
                 remainingSeconds = estimatedSeconds - secondsPassed;
             }
@@ -467,8 +468,8 @@ function seekVideo(timeInSeconds) {
 
 // Отображение времени обработки
 function showProcessingCompletionInfo() {
-    let start = parseUTCDate(TASK_START_TIME);
-    let end = parseUTCDate(TASK_END_TIME);
+    let start = new Date(TASK_START_TIME);
+    let end = new Date(TASK_END_TIME);
 
     let message = `Начало обработки ${formatDateTime(start)}<br>Окончание - ${formatDateTime(end)}<br>`;
     

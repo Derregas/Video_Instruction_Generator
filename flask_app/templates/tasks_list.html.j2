@@ -345,13 +345,13 @@
 
                 <div class="tasks-list" id="tasksList">
                     {% for task in tasks %}
-                        <div class="task-card task-item" data-status="{{ task.status }}" onclick="goToTask('{{ task.id }}')">
+                        <div class="task-card task-item" data-status="{{ task.status.value }}" onclick="goToTask('{{ task.id }}')">
                             <div class="task-id" title="{{ task.id }}">{{ task.id }}</div>
                             <div class="task-info">
                                 <div class="task-filename" title="{{ task.video_filename }}">
                                     <i class="fas fa-film"></i> {{ task.video_filename }}
                                 </div>
-                                <div class="task-status {{ task.status }}">
+                                <div class="task-status {{ task.status.value }}">
                                     {% if task.status == 'pending' %}
                                         Ожидание
                                     {% elif task.status == 'processing' %}
@@ -372,7 +372,7 @@
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div class="task-date">
-                                    {{ task.created_at[:10] if task.created_at else 'N/A' }}
+                                    {{ task.created_at if task.created_at else 'N/A' }}
                                 </div>
                                 <div class="task-arrow">
                                     <i class="fas fa-arrow-right"></i>

@@ -1,5 +1,6 @@
 # src/models.py
-
+# Устаревший вариант
+# Использовать src\infrastructure\persistence
 import os
 import json
 import sqlite3
