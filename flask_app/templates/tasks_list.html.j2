@@ -18,7 +18,7 @@
         }
 
         .container-tasks {
-            max-width: 1000px;
+            max-width: 70vw;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
@@ -26,7 +26,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            min-height: 80vh;
+            height: 95vh; /* Фиксированная высота контейнера */
         }
 
         .tasks-header {
@@ -78,10 +78,13 @@
         .tasks-content {
             flex: 1;
             padding: 20px;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
-        .tasks-empty {
+        .tasks-empty,
+        .tasks-empty-filter {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -113,6 +116,9 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            overflow-y: auto; /* Включаем вертикальную прокрутку */
+            flex: 1; /* Занимает всё доступное пространство в tasks-content */
+            padding-right: 5px; /* Небольшой отступ для полосы прокрутки */
         }
 
         .task-card {
@@ -123,7 +129,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             display: grid;
-            grid-template-columns: 80px 1fr 1fr 150px;
+            grid-template-columns: 80px 2fr 0.5fr 130px;
             align-items: center;
             gap: 15px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -145,8 +151,10 @@
 
         .task-info {
             display: flex;
-            flex-direction: column;
-            gap: 6px;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            min-width: 0; /* Важно для работы text-overflow в flex-контейнере */
         }
 
         .task-filename {
@@ -156,6 +164,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            min-width: 0; /* Позволяет сжиматься меньше содержимого */
         }
 
         .task-status {
@@ -311,6 +320,36 @@
                 display: none;
             }
         }
+
+        .tasks-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 10px;
+        }
+
+        .tasks-pagination button {
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .tasks-pagination button:disabled {
+            background: #adb5bd;
+            cursor: not-allowed;
+        }
+
+        .tasks-pagination span {
+            font-size: 14px;
+            color: #495057;
+        }
+
     </style>
 </head>
 <body>
@@ -349,19 +388,19 @@
                         <div class="task-card task-item" data-status="{{ task.status.value }}" onclick="goToTask('{{ task.id }}')">
                             <div class="task-id" title="{{ task.id }}">{{ task.id }}</div>
                             <div class="task-info">
-                                <div class="task-filename" title="{{ task.video_filename }}">
-                                    <i class="fas fa-film"></i> {{ task.video_filename }}
-                                </div>
                                 <div class="task-status {{ task.status.value }}">
-                                    {% if task.status == 'pending' %}
+                                    {% if task.status.value == 'pending' %}
                                         Ожидание
-                                    {% elif task.status == 'processing' %}
+                                    {% elif task.status.value == 'processing' %}
                                         Обработка
-                                    {% elif task.status == 'completed' %}
+                                    {% elif task.status.value == 'completed' %}
                                         Завершено
-                                    {% elif task.status == 'failed' %}
+                                    {% elif task.status.value == 'failed' %}
                                         Ошибка
                                     {% endif %}
+                                </div>
+                                <div class="task-filename" title="{{ task.video_filename }}">
+                                    <i class="fas fa-film"></i> {{ task.video_filename }}
                                 </div>
                             </div>
                             <div class="task-documents">
@@ -382,6 +421,20 @@
                         </div>
                     {% endfor %}
                 </div>
+
+                <div class="tasks-empty-filter" id="emptyFilterMessage" style="display: none;">
+                    <div class="tasks-empty-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div class="tasks-empty-text">Ничего не найдено</div>
+                    <div class="tasks-empty-subtext">По выбранному фильтру задачи не найдены</div>
+                </div>
+
+                <div class="tasks-pagination" id="paginationContainer">
+                    <button id="prevPage" onclick="changePage(-1)">Назад</button>
+                    <span id="pageInfo"></span>
+                    <button id="nextPage" onclick="changePage(1)">Вперед</button>
+                </div>
             {% else %}
                 <div class="tasks-empty">
                     <div class="tasks-empty-icon">
@@ -398,39 +451,96 @@
     </div>
 
     <script>
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let currentFilter = 'all';
+
         function goToTask(taskId) {
             window.location.href = `/task/${taskId}`;
         }
 
+        function getFilteredItems() {
+            const items = Array.from(document.querySelectorAll('.task-item'));
+            if (currentFilter === 'all') {
+                return items;
+            }
+            return items.filter(item => item.dataset.status === currentFilter);
+        }
+
+        function showPage(page) {
+            const filteredItems = getFilteredItems();
+            const totalItems = filteredItems.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const emptyMessage = document.getElementById('emptyFilterMessage');
+            const paginationContainer = document.getElementById('paginationContainer');
+
+            // Корректируем страницу
+            if (page < 1) page = 1;
+            if (page > totalPages) page = totalPages;
+            currentPage = page;
+
+            // Скрываем все элементы
+            document.querySelectorAll('.task-item').forEach(item => item.style.display = 'none');
+
+            if (totalItems === 0) {
+                // Показываем сообщение "Ничего не найдено" только при фильтрации
+                if (currentFilter !== 'all') {
+                    emptyMessage.style.display = 'flex';
+                }
+                paginationContainer.style.display = 'none';
+            } else {
+                emptyMessage.style.display = 'none';
+
+                // Показываем только элементы текущей страницы
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+                for (let i = startIndex; i < endIndex; i++) {
+                    filteredItems[i].style.display = 'grid';
+                }
+
+                // Обновляем пагинацию
+                updatePagination(totalPages);
+            }
+        }
+
+        function updatePagination(totalPages) {
+            const pageInfo = document.getElementById('pageInfo');
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+
+            if (totalPages <= 1) {
+                document.getElementById('paginationContainer').style.display = 'none';
+            } else {
+                document.getElementById('paginationContainer').style.display = 'flex';
+                pageInfo.textContent = `Страница ${currentPage} из ${totalPages}`;
+                prevBtn.disabled = currentPage === 1;
+                nextBtn.disabled = currentPage === totalPages;
+            }
+        }
+
+        function changePage(delta) {
+            showPage(currentPage + delta);
+        }
+
         function filterTasks(status) {
-            const items = document.querySelectorAll('.task-item');
             const buttons = document.querySelectorAll('.filter-btn');
 
             // Обновляем активную кнопку
             buttons.forEach(btn => btn.classList.remove('active'));
             event.target.closest('.filter-btn').classList.add('active');
 
-            // Фильтруем элементы
-            if (status === 'all') {
-                items.forEach(item => item.style.display = 'grid');
-            } else {
-                items.forEach(item => {
-                    if (item.dataset.status === status) {
-                        item.style.display = 'grid';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
-            }
+            currentFilter = status;
+            currentPage = 1; // Сбрасываем на первую страницу
+            showPage(1);
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Преобразование дат
             document.querySelectorAll('.task-date').forEach(function(el) {
                 let rawDate = el.getAttribute('data-utc');
                 if (!rawDate || rawDate === 'None' || rawDate === 'N/A') return;
 
-                // Приводим форматы к ISO (заменяем пробел на T, если нужно)
-                // И добавляем 'Z', чтобы браузер понял, что это UTC
                 let isoDate = rawDate.replace(' ', 'T');
                 if (!isoDate.endsWith('Z') && !isoDate.includes('+')) {
                     isoDate += 'Z';
@@ -439,7 +549,6 @@
                 const date = new Date(isoDate);
                 
                 if (!isNaN(date)) {
-                    // Форматируем дату (например: 11.05.2026, 11:27:15)
                     el.textContent = date.toLocaleString('ru-RU', {
                         year: 'numeric',
                         month: '2-digit',
@@ -450,6 +559,9 @@
                     });
                 }
             });
+
+            // Инициализация пагинации
+            showPage(1);
         });
     </script>
 </body>
