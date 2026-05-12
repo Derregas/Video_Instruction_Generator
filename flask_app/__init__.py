@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_app.extensions import app_services
 from src.services.task_queue import TaskQueue
 from src.core.processor import InstructionProcessingService
 from flask_app.task_processor import VideoInstructionProcessor
@@ -24,9 +25,7 @@ def create_app():
 
     # Загружаем pending задачи при старте
     task_queue.load_pending_tasks()
-
-    app.config['task_queue'] = task_queue
-    app.config['task_repo'] = task_repo
+    app_services.init_app(app, task_queue, task_repo)
 
     from .routes import main_bp
     app.register_blueprint(main_bp)

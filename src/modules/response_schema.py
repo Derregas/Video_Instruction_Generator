@@ -27,6 +27,7 @@ class Instruction(BaseModel):
         description="Ключевые слова из инструкции"
     )
     description: str = Field(
-        description="Назначение инструкции. Не более 3х предложений"
+        description="Назначение инструкции. Не более 3х предложений",
+        max_length=500
     )
     steps: List[Step]

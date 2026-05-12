@@ -6,7 +6,7 @@ import logging
 from typing import Optional
 from src.domain.entities import TaskStatus
 from src.domain.repositories import ITaskRepository
-from flask_app.task_processor import VideoInstructionProcessor
+from flask_app.task_processor import ITaskProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class TaskQueue:
     Очередь выполнения задач - выполняет одну задачу за раз.
     """
     
-    def __init__(self, task_repository: ITaskRepository, processor: VideoInstructionProcessor):
+    def __init__(self, task_repository: ITaskRepository, processor: ITaskProcessor):
         self.task_repo = task_repository
         self.processor = processor
         self.queue: queue.Queue = queue.Queue()  # FIFO очередь

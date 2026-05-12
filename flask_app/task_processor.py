@@ -3,13 +3,33 @@
 import os
 import logging
 from src.config import AppConfig
+from abc import ABC, abstractmethod
 from src.domain.repositories import ITaskRepository
 from src.domain.exceptions import TaskNotFoundError, DatabaseError
 from src.core.processor import InstructionProcessingService
 
 logger = logging.getLogger(__name__)
 
-class VideoInstructionProcessor():
+class ITaskProcessor(ABC):
+    """
+    Интерфейс для обработки задач.
+    Любой обработчик должен реализовать этот интерфейс.
+    """
+    
+    @abstractmethod
+    def process(self, task_id: str) -> None:
+        """
+        Обрабатывает задачу по ID.
+        
+        Args:
+            task_id: Идентификатор задачи
+        
+        Raises:
+            TaskNotFoundError: Если задача не найдена
+        """
+        pass
+
+class VideoInstructionProcessor(ITaskProcessor):
     """
     Реализация обработчика для видео инструкций.
     """
