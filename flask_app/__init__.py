@@ -1,9 +1,11 @@
 from flask import Flask
+from flask_login import LoginManager
 from flask_app.extensions import app_services
 from src.services.task_queue import TaskQueue
 from src.core.processor import InstructionProcessingService
 from flask_app.task_processor import VideoInstructionProcessor
 from src.infrastructure.persistence.sqlite_task_repository import SQLiteTaskRepository
+from src.infrastructure.persistence.sqlite_user_repository import SQLiteUserRepository
 
 task_queue: TaskQueue = None # type: ignore
 
@@ -12,9 +14,11 @@ def create_app():
     global task_queue
 
     app = Flask(__name__)
+    app.config['SECRET_KEY'] = '123'
     
-    # Инициализируем репозиторий
+    # Инициализируем репозитории
     task_repo = SQLiteTaskRepository(db_path="tasks.db")
+    user_repo = SQLiteUserRepository(db_path="users.db")
     service = InstructionProcessingService()
 
     processor = VideoInstructionProcessor(task_repo, service)
@@ -25,9 +29,23 @@ def create_app():
 
     # Загружаем pending задачи при старте
     task_queue.load_pending_tasks()
-    app_services.init_app(app, task_queue, task_repo)
+    app_services.init_app(app, task_queue, task_repo, user_repo)
+    
+    # Инициализируем Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Пожалуйста, войдите в систему'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        """Загружает пользователя по ID для Flask-Login"""
+        return app_services.user_repo.get_by_id(user_id)
 
     from .routes import main_bp
+    from .auth_routes import auth_bp
+    
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
     
     return app

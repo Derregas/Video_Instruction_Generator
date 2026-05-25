@@ -32,10 +32,81 @@
         .tasks-header {
             background: white;
             border-bottom: 1px solid #e9ecef;
-            padding: 30px 20px;
+            padding: 20px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .user-role {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .role-view {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .role-manage {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+        
+        .role-admin {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .header-links {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .header-links a {
+            font-size: 13px;
+            font-weight: 500;
+            color: #667eea;
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        
+        .header-links a:hover {
+            background: #f0f2ff;
         }
 
         .tasks-header-title {
@@ -129,7 +200,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             display: grid;
-            grid-template-columns: 80px 2fr 0.5fr 130px;
+            grid-template-columns: 80px 2fr 0.5fr 0.6fr 130px;
             align-items: center;
             gap: 15px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -165,6 +236,24 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             min-width: 0; /* Позволяет сжиматься меньше содержимого */
+        }
+
+        .task-user {
+            font-size: 13px;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-user i {
+            color: #667eea;
+            font-size: 14px;
+            width: 16px;
+            text-align: center;
         }
 
         .task-status {
@@ -355,12 +444,46 @@
 <body>
     <div class="container-tasks">
         <div class="tasks-header">
-            <h1 class="tasks-header-title">
-                <i class="fas fa-list-check"></i> Все задачи
-            </h1>
-            <a href="/task" class="new-task-btn">
-                <i class="fas fa-plus"></i> Новое видео
-            </a>
+            <div class="header-left">
+                <h1 class="tasks-header-title">
+                    <i class="fas fa-list-check"></i> Мои задачи
+                </h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="user-info">
+                    <i class="fas fa-user-circle" style="font-size: 18px; color: #667eea;"></i>
+                    <span class="user-name">{{ current_user.username }}</span>
+                    <span class="user-role role-{{ current_user.role.value }}">
+                        {% if current_user.role.value == 'admin' %}
+                            Администратор
+                        {% elif current_user.role.value == 'manage' %}
+                            Управление
+                        {% else %}
+                            Просмотр
+                        {% endif %}
+                    </span>
+                </div>
+                
+                <div class="header-links">
+                    {% if current_user.role.value == 'manage' or current_user.role.value == 'admin' %}
+                        <a href="/task" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white !important;">
+                            <i class="fas fa-plus"></i> Новое видео
+                        </a>
+                    {% endif %}
+                    {% if current_user.role.value == 'admin' %}
+                        <a href="{{ url_for('auth.list_users') }}">
+                            <i class="fas fa-users"></i> Пользователи
+                        </a>
+                    {% endif %}
+                    <a href="{{ url_for('auth.profile') }}">
+                        <i class="fas fa-user"></i> Профиль
+                    </a>
+                    <a href="{{ url_for('auth.logout') }}">
+                        <i class="fas fa-sign-out-alt"></i> Выход
+                    </a>
+                </div>
+            </div>
         </div>
 
         <div class="tasks-content">
@@ -402,6 +525,10 @@
                                 <div class="task-filename" title="{{ task.video_filename }}">
                                     <i class="fas fa-film"></i> {{ task.video_filename }}
                                 </div>
+                            </div>
+                            <div class="task-user" title="Создал: {{ users_dict.get(task.user_id, 'Неизвестно') }}">
+                                <i class="fas fa-user-circle"></i>
+                                <span>{{ users_dict.get(task.user_id, 'Неизвестно') }}</span>
                             </div>
                             <div class="task-documents">
                                 {% if task.document_names %}

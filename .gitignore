@@ -34,3 +34,9 @@ Thumbs.db
 output.txt
 test.py
 tasks.db
+ARCHITECTURE.md
+AUTH_INSTRUCTIONS.md
+create_admin.py
+start.bat
+start.sh
+users.db

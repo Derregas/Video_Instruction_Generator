@@ -54,6 +54,11 @@ class IUserRepository(ABC):
         pass
     
     @abstractmethod
+    def get_by_username(self, username: str) -> Optional[User]:
+        """Получить пользователя по username"""
+        pass
+    
+    @abstractmethod
     def update(self, user: User) -> None:
         """Обновить пользователя"""
         pass

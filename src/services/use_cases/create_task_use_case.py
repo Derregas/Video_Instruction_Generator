@@ -12,9 +12,11 @@ class CreateTaskRequest:
     """DTO для запроса создания задачи"""
     def __init__(self, 
                  video: FileStorage,
-                 documents: Optional[list[FileStorage]] = None):
+                 documents: Optional[list[FileStorage]] = None,
+                 user_id: Optional[str] = None):
         self.video = video
         self.documents = documents or []
+        self.user_id = user_id or "0"  # Default user_id if not provided
 
 class CreateTaskResponse:
     """DTO для ответа"""
@@ -92,7 +94,7 @@ class CreateTaskUseCase:
                 task_id=task_id,
                 video_filename=request.video.filename, # type: ignore
                 document_names=document_names,
-                user_id="0"
+                user_id=request.user_id
             )
             
             logger.info(f"[{task_id}] Задача успешно создана")

@@ -3,6 +3,7 @@ faster-whisper==1.2.1
 moviepy==2.2.1
 python-dotenv==1.2.1
 flask==3.0.0
+flask-login==0.6.3
 unstructured[all-docs] --prefer-binary
 fpdf==1.7.2
 docx

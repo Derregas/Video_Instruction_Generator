@@ -3,12 +3,13 @@ import os
 import logging
 from src.config import AppConfig
 from flask_app.extensions import app_services # Переменная для работы с бд и очередью задач
-from flask import Blueprint, render_template, request, jsonify, redirect, send_file
+from flask import Blueprint, render_template, request, jsonify, redirect, send_file, flash
+from flask_login import current_user, login_required
 from src.services.use_cases import (
     CreateTaskRequest,
     GenerateInstructionRequest,
 )
-
+from src.decorators import login_required_custom, can_manage_tasks
 from src.domain.exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
@@ -22,19 +23,28 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/home')
 def index():
     """Главная страница со списком всех задач"""
+    if not current_user.is_authenticated:
+        return redirect('/auth/login')
+    
     try:
+        # Все пользователи видят все задачи
         tasks = app_services.task_repo.get_all()
-        return render_template('tasks_list.html.j2', tasks=tasks)
+        # Получаем информацию о пользователях для отображения в таблице
+        users = app_services.user_repo.get_all()
+        users_dict = {u.id: u.username for u in users}
+        return render_template('tasks_list.html.j2', tasks=tasks, users_dict=users_dict)
     except Exception as e:
         logger.error(f"Ошибка при загрузке списка задач: {e}")
-        return render_template('tasks_list.html.j2', tasks=[], error="Ошибка при загрузке задач"), 500  
+        return render_template('tasks_list.html.j2', tasks=[], users_dict={}, error="Ошибка при загрузке задач"), 500  
 
 @main_bp.route('/task')
+@can_manage_tasks
 def new_task():
-    """Пустая форма загрузки видео"""
+    """Пустая форма загрузки видео. Только для пользователей с правом управления задачами"""
     return render_template('task.html.j2', task_id=None, task=None)
 
 @main_bp.route('/task/<task_id>')
+@login_required_custom
 def task(task_id: str):
     """
     Страница задачи с результатами обработки
@@ -44,6 +54,7 @@ def task(task_id: str):
         if not task:
             logger.warning(f"Задача {task_id} не найдена")
             return jsonify({'error': 'Указанная задача не найдена'}), 400
+        
         return render_template('task.html.j2', task_id=task_id, task=task)
     except Exception as e:
         logger.error(f"Ошибка при загрузке задачи {task_id}: {e}")
@@ -54,6 +65,7 @@ def task(task_id: str):
 # ==================================================
 
 @main_bp.route('/api/process', methods=['POST'])
+@can_manage_tasks
 def process_video():
     """Обработка загруженного видео с опциональными документами"""
     try:
@@ -61,10 +73,14 @@ def process_video():
         video = request.files.get('video')
         documents = request.files.getlist('documents') if 'documents' in request.files else None
         
+        # Получаем user_id из текущего пользователя
+        user_id = current_user.id
+        
         # Создаём request для use case
         create_task_request = CreateTaskRequest(
             video=video, # type: ignore проверка осуществляется внутри сервиса
-            documents=documents
+            documents=documents,
+            user_id=user_id
         )
         
         # Выполняем use case (валидация происходит здесь)
@@ -72,7 +88,7 @@ def process_video():
         response = use_case.execute(create_task_request)
 
         # Перенаправляем пользователя незаметно
-        logger.info(f"Задача {response.task_id} успешно создана")
+        logger.info(f"Задача {response.task_id} успешно создана пользователем {current_user.username}")
         return redirect(f'/task/{response.task_id}', code=303)
     
     except ValueError as e:
@@ -87,9 +103,14 @@ def process_video():
 
 # Периодический опрос статуса задачи
 @main_bp.route('/api/task/<task_id>', methods=['GET'])
+@login_required_custom
 def get_task_status(task_id: str):
     """Возвращает текущий статус задачи для polling из JS"""
     try:
+        task = app_services.task_repo.get_by_id(task_id)
+        if not task:
+            return jsonify({'error': 'Задача не найдена'}), 404
+        
         # Выполняем use case для получения статуса
         use_case = app_services.get_task_status_use_case
         response = use_case.execute(task_id)
@@ -103,6 +124,7 @@ def get_task_status(task_id: str):
 
 
 @main_bp.route('/api/task/<task_id>/video', methods=['GET'])
+@login_required_custom
 def get_task_video(task_id: str):
     """Отдаёт видеофайл задачи для воспроизведения на странице /<task_id>"""
     try:
@@ -122,9 +144,14 @@ def get_task_video(task_id: str):
         return jsonify({'error': 'Ошибка при отправке видеофайла'}), 500
 
 @main_bp.route('/api/task/<task_id>/instruction', methods=['GET'])
+@login_required_custom
 def get_task_instruction(task_id: str):
-    """Отдаёт готовую свормированную инструкцию в формате docx"""
+    """Отдаёт готовую сформированную инструкцию в формате docx"""
     try:
+        task = app_services.task_repo.get_by_id(task_id)
+        if not task:
+            return jsonify({'error': 'Задача не найдена'}), 404
+
         # Получаем формат из запроса. Если не указан, ставим 'pdf' по умолчанию
         doc_format = request.args.get('format', 'pdf').lower()
 

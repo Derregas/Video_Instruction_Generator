@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List
+from flask_login import UserMixin
 
 class TaskStatus(Enum):
     """Статусы задачи"""
@@ -12,12 +13,20 @@ class TaskStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+class UserRole(Enum):
+    """Роли пользователя в системе"""
+    VIEW = "view"  # Только просмотр
+    MANAGE = "manage"  # Управление: запуск работы, редактирование
+    ADMIN = "admin"  # Администратор
+
 @dataclass
-class User:
-    """Entity - представляет пользователя"""
+class User(UserMixin):
+    """Entity - представляет пользователя с поддержкой flask_login"""
     id: str  # UUID
     username: str
     email: str
+    password_hash: str  # Хеш пароля
+    role: UserRole = UserRole.VIEW  # Роль пользователя
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     
@@ -26,6 +35,10 @@ class User:
             raise ValueError("User ID и email не могут быть пустыми")
         if '@' not in self.email:
             raise ValueError("Некорректный email")
+        if not isinstance(self.role, UserRole):
+            raise ValueError(f"Invalid role: {self.role}")
+        if not self.password_hash:
+            raise ValueError("Password hash не может быть пустым")
 
 @dataclass
 class Task:
