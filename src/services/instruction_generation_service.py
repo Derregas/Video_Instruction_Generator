@@ -6,6 +6,7 @@ from src.config import AppConfig
 from src.domain.entities import TaskStatus
 from src.domain.exceptions import TaskNotFoundError
 from src.domain.repositories import ITaskRepository
+from src.services.instruction_result_service import InstructionResultService
 from flask_app.document_generators import DocumentCreator
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,9 @@ class InstructionGenerationService:
     
     ALLOWED_FORMATS = ('pdf', 'docx', 'txt')
     
-    def __init__(self, task_repo: ITaskRepository):
+    def __init__(self, task_repo: ITaskRepository, result_service: InstructionResultService):
         self.task_repo = task_repo
+        self.result_service = result_service
     
     def generate_instruction(self,
                             task_id: str,
@@ -48,9 +50,10 @@ class InstructionGenerationService:
         if task.status != TaskStatus.COMPLETED:
             raise ValueError(f'Обработка не завершена. Статус: {task.status.value}')
         
-        # Проверяем результат
-        if not task.result:
-            raise ValueError('Получен пустой результат')
+        # Получаем структурированные данные из новой БД
+        instruction_data = self.result_service.get_instruction_by_task_id(task_id)
+        if not instruction_data:
+            raise ValueError('Данные инструкции не найдены в базе результатов')
         
         try:
             # Генерируем файл
@@ -58,7 +61,8 @@ class InstructionGenerationService:
             filename = f"instruction_{task_id}.{doc_format}"
             filepath = os.path.join(task_dir, filename)
             
-            DocumentCreator.create(task.result, filepath)
+            # Передаем структурированные данные вместо сырого JSON
+            DocumentCreator.create(instruction_data, filepath)
             logger.info(f"[{task_id}] Инструкция сгенерирована: {filepath}")
             
             return filepath

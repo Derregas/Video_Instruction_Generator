@@ -453,6 +453,29 @@
             cursor: not-allowed;
         }
 
+        .edit-button {
+            width: 100%;
+            padding: 10px 15px;
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .edit-button:hover {
+            background: #e2e6ea;
+            border-color: #adb5bd;
+        }
+
         .export-menu {
             display: none;
             position: absolute;
@@ -465,6 +488,75 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             z-index: 1000;
             overflow: hidden;
+        }
+        
+        /* Модальное окно редактора */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: white;
+            width: 80%;
+            max-width: 900px;
+            max-height: 90vh;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .step-editor-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .step-editor-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
         }
 
         .export-menu.active {
@@ -596,6 +688,9 @@
                 
                 <!-- Кнопка экспорта инструкции -->
                 <div class="export-section">
+                    <button class="edit-button" id="editButton" title="Редактировать инструкцию">
+                        <i class="fas fa-edit"></i> Редактировать
+                    </button>
                     <button class="export-button" id="exportButton" disabled title="Экспортировать инструкцию">
                         <i class="fas fa-download"></i> Экспорт инструкции
                     </button>
@@ -610,6 +705,44 @@
                             <i class="fas fa-file-word"></i> DOCX
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно редактора -->
+        <div class="modal-overlay" id="editorModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 style="margin: 0; font-size: 18px;"><i class="fas fa-edit"></i> Редактор инструкции</h3>
+                    <button class="btn-close" data-bs-dismiss="modal" onclick="closeEditor()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Название инструкции</label>
+                        <input type="text" id="editTitle" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Описание</label>
+                        <textarea id="editDescription" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ключевые слова (через запятую)</label>
+                        <input type="text" id="editKeywords" class="form-control" placeholder="слово1, слово2, ...">
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0"><i class="fas fa-list-ol"></i> Шаги инструкции</h5>
+                        <button class="btn btn-primary btn-small" onclick="addNewStep()">
+                            <i class="fas fa-plus"></i> Добавить шаг
+                        </button>
+                    </div>
+                    <div id="stepsEditorList">
+                        <!-- Шаги будут добавляться динамически -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeEditor()">Отмена</button>
+                    <button class="btn btn-primary" onclick="saveInstruction()">Сохранить изменения</button>
                 </div>
             </div>
         </div>
@@ -672,6 +805,7 @@
         const TASK_DOCUMENT_NAMES = {{ task.document_names | tojson if task else '[]' }};
         const TASK_START_TIME = {{task.started_at | tojson if task and task.created_at else 'null'}}
         const TASK_END_TIME = {{task.ended_at | tojson if task and task.ended_at else 'null'}}
+        const INSTRUCTION_DATA = {{ instruction | tojson if instruction else 'null' }};
 
         // Функция для безопасного создания Date из UTC строки
         function parseUTCDate(dateStr) {

@@ -2,11 +2,14 @@
 
 import os
 import logging
+import json
 from src.config import AppConfig
 from abc import ABC, abstractmethod
 from src.domain.repositories import ITaskRepository
 from src.domain.exceptions import TaskNotFoundError, DatabaseError
 from src.core.processor import InstructionProcessingService
+from src.services.instruction_result_service import InstructionResultService
+from src.modules.response_schema import Instruction as InstructionSchema
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +37,10 @@ class VideoInstructionProcessor(ITaskProcessor):
     Реализация обработчика для видео инструкций.
     """
     
-    def __init__(self, task_repo: ITaskRepository, service: InstructionProcessingService):
+    def __init__(self, task_repo: ITaskRepository, service: InstructionProcessingService, result_service: InstructionResultService):
         self.task_repo = task_repo
         self.service = service
+        self.result_service = result_service
     
     def process(self, task_id: str) -> None:
         """
@@ -61,7 +65,7 @@ class VideoInstructionProcessor(ITaskProcessor):
             document_paths = None
             if task.document_names:
                 document_paths = [
-                    os.path.join(request_temp_dir, f"doc_{name}") 
+                    os.path.join(request_temp_dir, f"{name}") 
                     for name in task.document_names
                 ]
             
@@ -70,14 +74,51 @@ class VideoInstructionProcessor(ITaskProcessor):
             self.task_repo.update(task)
             
             # Обрабатываем видео
-            result = self.service.generate_instruction(
+            result_json_str = self.service.generate_instruction(
                 video_path, 
                 documents=document_paths, 
                 task_id=task_id
             )
             
+            # ПАРСИНГ И СОХРАНЕНИЕ В НОВЫЕ ТАБЛИЦЫ
+            try:
+                # Парсим JSON строку в Pydantic модель
+                parsed_result = InstructionSchema.model_validate_json(result_json_str)
+                
+                # 1. Создаем основную инструкцию
+                instruction = self.result_service.create_instruction(
+                    task_id=task_id,
+                    title=parsed_result.name,
+                    description=parsed_result.description
+                )
+                
+                # 2. Сохраняем ключевые слова
+                self.result_service.set_keywords(
+                    instruction_id=instruction.id,
+                    keywords_list=parsed_result.key_words
+                )
+                
+                # 3. Сохраняем шаги
+                for i, step_data in enumerate(parsed_result.steps, 1):
+                    self.result_service.add_instruction_step(
+                        instruction_id=instruction.id,
+                        step_order=i,
+                        title=step_data.title,
+                        text=step_data.description,
+                        time_start=step_data.start_time,
+                        time_end=step_data.end_time,
+                        image_id=step_data.best_image_id
+                    )
+                
+                logger.info(f"[{task_id}] Структурированные данные сохранены в requirements.db")
+                
+            except Exception as parse_err:
+                logger.error(f"[{task_id}] Ошибка парсинга JSON ответа: {parse_err}")
+                # Если парсинг не удался, продолжаем, чтобы задача не висела, 
+                # но в result задачи останется сырой JSON
+            
             # Отмечаем как завершено
-            task.mark_completed(result)
+            task.mark_completed(result_json_str)
             self.task_repo.update(task)
             logger.info(f"[{task_id}] Обработка завершена успешно")
             

@@ -90,3 +90,79 @@ class Task:
         self.error_message = error
         self.ended_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
+
+
+# ==================================================
+# ENTITIES FOR INSTRUCTIONS (Results Storage)
+# ==================================================
+
+@dataclass
+class Instruction:
+    """
+    Entity - представляет инструкцию.
+    Одна инструкция создаётся из одной задачи обработки видео.
+    """
+    id: str
+    task_id: str  # Связь с Task
+    title: str  # Название инструкции
+    description: str  # Описание инструкции
+    keywords_id: Optional[str] = None  # Связь с Keywords
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+    
+    def __post_init__(self):
+        if not self.id or not self.task_id or not self.title:
+            raise ValueError("ID, task_id и title не могут быть пустыми")
+
+
+@dataclass
+class InstructionStep:
+    """
+    Entity - представляет шаг инструкции.
+    Одна инструкция может содержать множество шагов.
+    """
+    id: str
+    instruction_id: str  # Связь с Instruction
+    step_order: int  # Порядок шага (1, 2, 3...)
+    title: str  # Заголовок шага
+    text: str  # Текст описания шага
+    time_start: Optional[float] = None  # Время начала в видео (сек)
+    time_end: Optional[float] = None  # Время конца в видео (сек)
+    image_id: Optional[str] = None  # Связь с ResourceRegistry (изображение)
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    
+    def __post_init__(self):
+        if not self.id or not self.instruction_id or self.step_order < 1:
+            raise ValueError("ID, instruction_id и step_order (>= 1) обязательны")
+
+
+@dataclass
+class Keywords:
+    """
+    Entity - представляет ключевые слова для инструкции.
+    """
+    id: str
+    instruction_id: str  # Связь с Instruction
+    keywords_list: List[str] = field(default_factory=list)  # Список ключевых слов
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    
+    def __post_init__(self):
+        if not self.id or not self.instruction_id:
+            raise ValueError("ID и instruction_id не могут быть пустыми")
+
+
+@dataclass
+class ResourceRegistry:
+    """
+    Entity - представляет ресурс (файл: изображение, видео и т.д.).
+    """
+    id: str
+    filename: str  # Имя файла
+    filepath: str  # Полный путь к файлу
+    resource_type: str  # Тип ресурса: image, video, document и т.д.
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    instruction_id: Optional[str] = None  # Связь с Instruction (опционально)
+    
+    def __post_init__(self):
+        if not self.id or not self.filename or not self.filepath:
+            raise ValueError("ID, filename и filepath не могут быть пустыми")

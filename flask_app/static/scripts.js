@@ -194,51 +194,72 @@ function restoreVideoAndShowError(errorMsg, video) {
 function displayInstructions(instructionData) {
     console.log('Displaying instructions:', instructionData);
     
-    if (!instructionData) {
+    if (!instructionData && !INSTRUCTION_DATA) {
         infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description text-danger">Ошибка: нет данных для отображения</div></div>`;
         return;
     }
     
     try {
-        let instructions = instructionData;
+        // Приоритет: используем INSTRUCTION_DATA из шаблона, если он есть, иначе парсим переданные данные
+        let data = INSTRUCTION_DATA || instructionData;
         
-        // Если это строка, пытаемся парсить как JSON
-        if (typeof instructionData === 'string') {
+        if (typeof data === 'string') {
             try {
-                instructions = JSON.parse(instructionData);
+                data = JSON.parse(data);
             } catch (e) {
-                console.log('Не получилось парсить как JSON, выводим как текст');
-                infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(instructionData)}</div></div>`;
+                infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(data)}</div></div>`;
                 return;
             }
         }
         
-        // Ищем массив: либо это прямо массив, либо массив внутри объекта
-        let dataArray = null;
-        
-        if (Array.isArray(instructions)) {
-            dataArray = instructions;
-            console.log('Найден прямой массив');
-        } else if (typeof instructions === 'object' && instructions !== null) {
-            dataArray = instructions.steps
-            if (dataArray) {
-                console.log('Найден массив внутри объекта');
-            }
+        // Ожидаем структуру: { instruction: {title, description, ...}, steps: [], keywords: {keywords_list: []} }
+        let instruction = null;
+        let steps = [];
+        let keywords = [];
+
+        if (data.instruction) {
+            instruction = data.instruction;
+            steps = data.steps || [];
+            keywords = (data.keywords && data.keywords.keywords_list) ? data.keywords.keywords_list : [];
+        } else if (data.steps) {
+            // Старый формат или упрощенный
+            steps = data.steps;
+            instruction = { title: data.name || 'Инструкция', description: data.description || '' };
+            keywords = data.key_words || [];
+        } else if (Array.isArray(data)) {
+            steps = data;
         }
-        
+
         let html = '';
         
-        if (dataArray && Array.isArray(dataArray)) {
-            if (dataArray.length === 0) {
-                html = `<div class="instruction-item"><div class="instruction-description">Инструкции не найдены</div></div>`;
+        // 1. Заголовок и описание инструкции
+        if (instruction) {
+            html += `
+                <div class="instruction-item" style="border-left-color: #764ba2; background: #fcfaff;">
+                    <div class="instruction-title" style="font-size: 16px; color: #764ba2;">
+                        <i class="fas fa-book-open"></i> ${escapeHtml(instruction.title || 'Инструкция')}
+                    </div>
+                    <div class="instruction-description" style="font-weight: 500;">${escapeHtml(instruction.description || '')}</div>
+                    ${keywords.length > 0 ? `
+                        <div class="instruction-time" style="margin-top: 10px; font-style: italic;">
+                            <i class="fas fa-tags"></i> ${keywords.map(k => `#${escapeHtml(k)}`).join(' ')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // 2. Шаги инструкции
+        if (steps && Array.isArray(steps)) {
+            if (steps.length === 0) {
+                html += `<div class="instruction-item"><div class="instruction-description">Шаги не найдены</div></div>`;
             } else {
-                dataArray.forEach((item, index) => {
-                    const title = item.title || item.name || item.step || 'Без названия';
-                    const description = item.description || item.text || item.content || '';
+                steps.forEach((item, index) => {
+                    const title = item.title || item.name || 'Без названия';
+                    const description = item.text || item.description || item.content || '';
                     
-                    // Получаем время в секундах и конвертируем в mm:ss или hh:mm:ss
-                    const startTimeSeconds = parseFloat(item.start_time || item.startTime || item.time_start || 0);
-                    const endTimeSeconds = parseFloat(item.end_time || item.endTime || item.time_end || 0);
+                    const startTimeSeconds = parseFloat(item.time_start || item.startTime || item.start_start || 0);
+                    const endTimeSeconds = parseFloat(item.time_end || item.endTime || item.end_time || 0);
                     
                     const startTimeFormatted = formatTime(startTimeSeconds);
                     const endTimeFormatted = formatTime(endTimeSeconds);
@@ -249,11 +270,11 @@ function displayInstructions(instructionData) {
                             <div class="instruction-description">${escapeHtml(String(description))}</div>
                             <div class="instruction-time" style="cursor: pointer;">
                                 <i class="fas fa-clock"></i>
-                                <span class="time-link" onclick="seekVideo(${startTimeSeconds})" title="Нажмите, чтобы перейти к этому времени">
+                                <span class="time-link" onclick="seekVideo(${startTimeSeconds})" title="Перейти к началу шага">
                                     ${startTimeFormatted}
                                 </span>
                                 <span> - </span>
-                                <span class="time-link" onclick="seekVideo(${endTimeSeconds})" title="Нажмите, чтобы перейти к этому времени">
+                                <span class="time-link" onclick="seekVideo(${endTimeSeconds})" title="Перейти к концу шага">
                                     ${endTimeFormatted}
                                 </span>
                             </div>
@@ -261,20 +282,14 @@ function displayInstructions(instructionData) {
                     `;
                 });
             }
-        } else if (typeof instructions === 'object' && instructions !== null) {
-            // Если это объект без массива, отображаем его как текст
-            html = `<div class="instruction-item"><div class="instruction-description"><pre>${escapeHtml(JSON.stringify(instructions, null, 2))}</pre></div></div>`;
-        } else if (typeof instructions === 'string') {
-            // Если это простая строка
-            html = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(instructions)}</div></div>`;
-        } else {
-            html = `<div class="instruction-item"><div class="instruction-description">${escapeHtml(String(instructions))}</div></div>`;
+        } else if (!instruction) {
+            html = `<div class="instruction-item"><div class="instruction-description text-danger">Данные инструкции отсутствуют или имеют неверный формат</div></div>`;
         }
         
         infoPanel.innerHTML = html;
     } catch (e) {
-        console.error('Ошибка при обработке инструкций:', e);
-        infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description text-danger">Ошибка при обработке: ${escapeHtml(e.message)}</div></div>`;
+        console.error('Ошибка при отображении инструкции:', e);
+        infoPanel.innerHTML = `<div class="instruction-item"><div class="instruction-description text-danger">Ошибка отображения: ${escapeHtml(e.message)}</div></div>`;
     }
 }
 
@@ -638,7 +653,7 @@ startButton.addEventListener('click', () => {
     startProcessing();
 });
 
-// ==================== ЭКСПОРТ ИНСТРУКЦИИ ====================
+// ==================== ЭКСПОРТ И РЕДАКТИРОВАНИЕ ИНСТРУКЦИИ ====================
 
 // Показать кнопку экспорта
 function showExportButton() {
@@ -684,6 +699,150 @@ function exportInstruction(format) {
     }
 }
 
+// --- РЕДАКТОР ИНСТРУКЦИИ ---
+
+function openEditor() {
+    if (!INSTRUCTION_DATA) {
+        alert('Данные инструкции еще не готовы');
+        return;
+    }
+
+    const modal = document.getElementById('editorModal');
+    const titleInput = document.getElementById('editTitle');
+    const descInput = document.getElementById('editDescription');
+    const keysInput = document.getElementById('editKeywords');
+    const stepsList = document.getElementById('stepsEditorList');
+
+    // Заполняем основные поля
+    const data = INSTRUCTION_DATA.instruction;
+    titleInput.value = data.title;
+    descInput.value = data.description;
+    keysInput.value = (INSTRUCTION_DATA.keywords.keywords_list);
+    
+    // Заполняем шаги
+    stepsList.innerHTML = '';
+    const steps = INSTRUCTION_DATA.steps || [];
+    steps.forEach((step, index) => {
+        addStepToEditor(step, index);
+    });
+
+    modal.style.display = 'flex';
+}
+
+function closeEditor() {
+    document.getElementById('editorModal').style.display = 'none';
+}
+
+function addStepToEditor(stepData = null, index = null) {
+    const stepsList = document.getElementById('stepsEditorList');
+    const stepId = stepData ? stepData.id : strUuid();
+    
+    const stepDiv = document.createElement('div');
+    stepDiv.className = 'step-editor-item';
+    stepDiv.dataset.id = stepId;
+    // Сохраняем image_id в data-атрибуте, чтобы не потерять при сохранении
+    if (stepData && stepData.image_id) {
+        stepDiv.dataset.imageId = stepData.image_id;
+    }
+    
+    stepDiv.innerHTML = `
+        <div class="step-editor-controls">
+            <button class="btn btn-outline-secondary btn-small" onclick="moveStep(this, -1)"><i class="fas fa-arrow-up"></i></button>
+            <button class="btn btn-outline-secondary btn-small" onclick="moveStep(this, 1)"><i class="fas fa-arrow-down"></i></button>
+            <button class="btn btn-outline-danger btn-small" onclick="removeStep(this)"><i class="fas fa-trash"></i></button>
+        </div>
+        <div class="mb-2">
+            <input type="text" class="form-control form-control-sm step-title" placeholder="Заголовок шага" value="${stepData ? escapeHtml(stepData.title) : ''}">
+        </div>
+        <div class="mb-2">
+            <textarea class="form-control form-control-sm step-text" rows="2" placeholder="Описание шага">${stepData ? escapeHtml(stepData.text) : ''}</textarea>
+        </div>
+        <div class="d-flex gap-2">
+            <div class="flex-fill">
+                <small class="text-muted">Начало (сек)</small>
+                <input type="number" step="0.1" class="form-control form-control-sm step-start" value="${stepData ? stepData.time_start : '0'}">
+            </div>
+            <div class="flex-fill">
+                <small class="text-muted">Конец (сек)</small>
+                <input type="number" step="0.1" class="form-control form-control-sm step-end" value="${stepData ? stepData.time_end : '0'}">
+            </div>
+        </div>
+    `;
+    
+    stepsList.appendChild(stepDiv);
+}
+
+function moveStep(btn, direction) {
+    const item = btn.closest('.step-editor-item');
+    if (direction === -1 && item.previousElementSibling) {
+        item.parentNode.insertBefore(item, item.previousElementSibling);
+    } else if (direction === 1 && item.nextElementSibling) {
+        item.parentNode.insertBefore(item.nextElementSibling, item);
+    }
+}
+
+function removeStep(btn) {
+    if (confirm('Удалить этот шаг?')) {
+        btn.closest('.step-editor-item').remove();
+    }
+}
+
+function addNewStep() {
+    addStepToEditor();
+}
+
+async function saveInstruction() {
+    const title = document.getElementById('editTitle').value;
+    const description = document.getElementById('editDescription').value;
+    const keywords = document.getElementById('editKeywords').value.split(',').map(k => k.trim()).filter(k => k);
+    
+    const steps = [];
+    document.querySelectorAll('.step-editor-item').forEach(item => {
+        steps.push({
+            id: item.dataset.id,
+            title: item.querySelector('.step-title').value,
+            text: item.querySelector('.step-text').value,
+            time_start: parseFloat(item.querySelector('.step-start').value) || 0,
+            time_end: parseFloat(item.querySelector('.step-end').value) || 0,
+            image_id: item.dataset.imageId || "null"
+        });
+    });
+
+    const payload = {
+        title,
+        description,
+        keywords,
+        steps
+    };
+
+    try {
+        const response = await fetch(`/api/instruction/${INSTRUCTION_DATA.instruction.id}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            alert('Инструкция успешно сохранена!');
+            closeEditor();
+            // Перезагружаем страницу, чтобы обновить данные в INSTRUCTION_DATA
+            window.location.reload();
+        } else {
+            const err = await response.json();
+            alert('Ошибка сохранения: ' + (err.error || 'Неизвестная ошибка'));
+        }
+    } catch (e) {
+        alert('Ошибка сети: ' + e.message);
+    }
+}
+
+function strUuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
 // Обработчики для кнопок экспорта
 if (exportButton) {
     exportButton.addEventListener('click', () => {
@@ -701,6 +860,11 @@ if (exportDocxBtn) {
     exportDocxBtn.addEventListener('click', () => {
         exportInstruction('docx');
     });
+}
+
+// Обработчик кнопки редактирования
+if (document.getElementById('editButton')) {
+    document.getElementById('editButton').addEventListener('click', openEditor);
 }
 
 // Закрыть меню при клике вне его

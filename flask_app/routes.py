@@ -55,7 +55,10 @@ def task(task_id: str):
             logger.warning(f"Задача {task_id} не найдена")
             return jsonify({'error': 'Указанная задача не найдена'}), 400
         
-        return render_template('task.html.j2', task_id=task_id, task=task)
+        # Получаем структурированные данные инструкции из новой БД
+        instruction_data = app_services.instruction_result_service.get_instruction_by_task_id(task_id)
+        
+        return render_template('task.html.j2', task_id=task_id, task=task, instruction=instruction_data)
     except Exception as e:
         logger.error(f"Ошибка при загрузке задачи {task_id}: {e}")
         return jsonify({'error': 'Ошибка при загрузке задачи'}), 500
@@ -187,3 +190,54 @@ def get_task_instruction(task_id: str):
     except Exception as e:
         logger.error(f"Ошибка при генерации инструкции для {task_id}: {e}", exc_info=True)
         return jsonify({'error': 'Ошибка при создании файла инструкции'}), 500
+
+@main_bp.route('/api/instruction/<instruction_id>', methods=['GET'])
+@login_required_custom
+def get_instruction_data(instruction_id: str):
+    """Возвращает данные инструкции для редактора"""
+    try:
+        data = app_services.instruction_result_service.get_instruction_with_steps(instruction_id)
+        if not data:
+            return jsonify({'error': 'Инструкция не найдена'}), 404
+        
+        # Преобразуем объекты в словари для JSON
+        return jsonify({
+            'instruction': {
+                'id': data['instruction'].id,
+                'title': data['instruction'].title,
+                'description': data['instruction'].description,
+            },
+            'keywords': data['keywords'].keywords_list if data['keywords'] else [],
+            'steps': [
+                {
+                    'id': s.id,
+                    'title': s.title,
+                    'text': s.text,
+                    'time_start': s.time_start,
+                    'time_end': s.time_end,
+                    'image_id': s.image_id
+                } for s in data['steps']
+            ]
+        }), 200
+    except Exception as e:
+        logger.error(f"Ошибка при получении данных инструкции {instruction_id}: {e}")
+        return jsonify({'error': 'Ошибка сервера'}), 500
+
+@main_bp.route('/api/instruction/<instruction_id>/save', methods=['POST'])
+@can_manage_tasks
+def save_instruction(instruction_id: str):
+    """Сохраняет отредактированную инструкцию"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Нет данных для сохранения'}), 400
+        
+        app_services.instruction_result_service.update_instruction_full(instruction_id, data)
+        
+        return jsonify({'status': 'success', 'message': 'Инструкция успешно сохранена'}), 200
+    except DatabaseError as e:
+        logger.error(f"Ошибка БД при сохранении инструкции {instruction_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении инструкции {instruction_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Внутренняя ошибка сервера'}), 500

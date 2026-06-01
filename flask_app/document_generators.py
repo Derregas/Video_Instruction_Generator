@@ -18,7 +18,9 @@ class BaseDocument(ABC):
     def create(self, content: str, filename: str) -> None:
         pass
     @staticmethod
-    def _to_json(content: str):
+    def _to_json(content):
+        if isinstance(content, dict):
+            return content
         return json.loads(content)
     @staticmethod
     def format_time(seconds: float) -> str:
@@ -76,7 +78,7 @@ class DocxDocument(BaseDocument):
         section.left_margin = Cm(2.5)
         section.right_margin = Cm(1.5)
 
-        title = doc.add_heading(json_content['name'], 0)
+        title = doc.add_heading(json_content['instruction'].title, 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for run in title.runs:
             run.font.name = 'Times New Roman'
@@ -84,29 +86,29 @@ class DocxDocument(BaseDocument):
         key_words_h = doc.add_heading("Ключевые слова:", level=2)
         for run in key_words_h.runs:
             run.font.name = 'Times New Roman'
-        words = ", ".join(json_content['key_words'])
+        words = ", ".join(json_content['keywords'].keywords_list)
         k_words = doc.add_paragraph(words)
         k_words.paragraph_format.first_line_indent = Cm(0.75)
 
         description_h = doc.add_heading("Назначение", level=1)
         for run in description_h.runs:
             run.font.name = 'Times New Roman'
-        desc_p = doc.add_paragraph(json_content['description'])
+        desc_p = doc.add_paragraph(json_content['instruction'].description)
         desc_p.paragraph_format.first_line_indent = Cm(0.75)
 
         for index, step in enumerate(json_content['steps'], start=1):
             # Добавляем заголовок шага
-            heading = doc.add_heading(f"{index}. {step['title']}", level=1)
+            heading = doc.add_heading(f"{index}. {step.title}", level=1)
             for run in heading.runs:
                 run.font.name = 'Times New Roman'
 
             # Описание
-            p = doc.add_paragraph(step['description'])
+            p = doc.add_paragraph(step.text)
             p.paragraph_format.first_line_indent = Cm(0.75) # Красная строка
             p.paragraph_format.space_after = Pt(10)         # Отступ после абзаца
             
             # ВСТАВКА КАРТИНКИ
-            img_path = os.path.join(os.path.dirname(filename), step['best_image_id'])
+            img_path = os.path.join(os.path.dirname(filename), step.image_id)
             
             if os.path.exists(img_path):
                 try:
@@ -121,7 +123,7 @@ class DocxDocument(BaseDocument):
                 logger.warning(f"Файл не найден: {img_path}")
 
             # Таймкоды
-            time_text = f"Таймкод: {self.format_time(float(step['start_time']))} - {self.format_time(float(step['end_time']))}"
+            time_text = f"Таймкод: {self.format_time(float(step.time_start))} - {self.format_time(float(step.time_end))}"
             caption = doc.add_paragraph(time_text)
             caption.italic = True # type: ignore
             caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -155,13 +157,13 @@ class PdfDocument(BaseDocument):
 
         # Заголовок
         pdf.set_font('TimesNewRoman', 'B', 16)
-        pdf.cell(0, 10, json_content['name'], 0, 1, 'C')
+        pdf.cell(0, 10, json_content['instruction'].title, 0, 1, 'C')
         # Ключевые слова
         pdf.set_font('TimesNewRoman', '', 14)
         pdf.cell(0, 10, "Ключевые слова:", ln=True)
         pdf.set_font('TimesNewRoman', '', 13)
         pdf.set_x(pdf.l_margin + 8)
-        words = ", ".join(json_content['key_words'])
+        words = ", ".join(json_content['keywords'].keywords_list)
         pdf.multi_cell(0, 8, words)
         pdf.ln(3)
         pdf.set_x(pdf.l_margin)
@@ -169,7 +171,7 @@ class PdfDocument(BaseDocument):
         pdf.set_font('TimesNewRoman', 'B', 14)
         pdf.cell(0, 10, "Назначение", ln=True)
         pdf.set_font('TimesNewRoman', '', 14)
-        pdf.multi_cell(0, 8, json_content['description'])
+        pdf.multi_cell(0, 8, json_content['instruction'].description)
         pdf.ln(3)
 
         for index, step in enumerate(json_content['steps'], start=1):
@@ -178,23 +180,23 @@ class PdfDocument(BaseDocument):
                 pdf.add_page()
 
             pdf.set_font('TimesNewRoman', 'B', 14)
-            pdf.cell(0, 10, f"{index}. \t{step['title']}", ln=True)
+            pdf.cell(0, 10, f"{index}. \t{step.title}", ln=True)
 
             pdf.set_font('TimesNewRoman', '', 14)
-            pdf.multi_cell(0, 8, step['description'])
+            pdf.multi_cell(0, 8, step.text)
             pdf.ln(3)
 
             if pdf.get_y() > (270 - 120): 
                 pdf.add_page()
 
             # Вставляем картинку
-            img_path = os.path.join(os.path.dirname(filename), step['best_image_id'])
+            img_path = os.path.join(os.path.dirname(filename), step.image_id)
             if os.path.exists(img_path):
                 pdf.image(img_path, x=10, w=100)
                 pdf.ln(1)
 
             pdf.set_font('TimesNewRoman', 'I', 10)
-            pdf.cell(0, 10, f"Время: {self.format_time(float(step['start_time']))} - {self.format_time(float(step['end_time']))}", ln=True)
+            pdf.cell(0, 10, f"Время: {self.format_time(float(step.time_start))} - {self.format_time(float(step.time_end))}", ln=True)
             pdf.ln(5)
 
         pdf.output(filename)
