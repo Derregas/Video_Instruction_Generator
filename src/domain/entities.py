@@ -75,13 +75,13 @@ class Task:
         self.started_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
     
-    def mark_completed(self, result: str):
+    def mark_completed(self, result: Optional[str] = None):
         if self.status != TaskStatus.PROCESSING:
             raise ValueError(
                 f"Невозможно завершить задачу со статусом {self.status.value}."
                 f"Только задачи со статусом {TaskStatus.PROCESSING.value} могут быть завершены.")
         self.status = TaskStatus.COMPLETED
-        self.result = result
+        if result: self.result = result
         self.ended_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
     

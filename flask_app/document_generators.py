@@ -7,21 +7,48 @@ from docx import Document
 from docx.oxml.ns import qn
 from docx.shared import Pt, Cm
 from abc import ABC, abstractmethod
-from typing import Type, Dict, Literal
+from typing import Type, Dict, Literal, Optional
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from src.services.file_management_service import FileManagementService
 
 logger = logging.getLogger(__name__)
 
 class BaseDocument(ABC):
     base_fonts_path = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
+    
+    def __init__(self, task_id: Optional[str] = None):
+        """
+        Инициализирует документ.
+        
+        Args:
+            task_id: ID задачи, используется для поиска картинок в result/temp директориях
+        """
+        self.task_id = task_id
+    
     @abstractmethod
     def create(self, content: str, filename: str) -> None:
         pass
+    
+    def _find_image_path(self, image_id: str) -> Optional[str]:
+        """
+        Находит путь к картинке.
+        
+        Если task_id известен, ищет в result/images/ и temp директориях.
+        Иначе ищет в директории выходного файла (для обратной совместимости).
+        """
+        if self.task_id and image_id:
+            # Ищем в result/images и temp директориях
+            path = FileManagementService.get_task_file_path(self.task_id, image_id, file_type='image')
+            if path:
+                return path
+        return None
+    
     @staticmethod
     def _to_json(content):
         if isinstance(content, dict):
             return content
         return json.loads(content)
+    
     @staticmethod
     def format_time(seconds: float) -> str:
         m = int(seconds // 60)
@@ -108,9 +135,16 @@ class DocxDocument(BaseDocument):
             p.paragraph_format.space_after = Pt(10)         # Отступ после абзаца
             
             # ВСТАВКА КАРТИНКИ
-            img_path = os.path.join(os.path.dirname(filename), step.image_id)
+            # Ищем картинку с использованием task_id
+            img_path = self._find_image_path(step.image_id)
             
-            if os.path.exists(img_path):
+            # Для обратной совместимости: ищем в директории документа
+            if not img_path:
+                fallback_path = os.path.join(os.path.dirname(filename), step.image_id)
+                if os.path.exists(fallback_path):
+                    img_path = fallback_path
+            
+            if img_path and os.path.exists(img_path):
                 try:
                     doc.add_picture(img_path, width=Cm(12))
                     # Центрируем картинку (она считается как отдельный параграф)
@@ -118,9 +152,9 @@ class DocxDocument(BaseDocument):
                     last_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 except Exception as e:
                     logger.error(f"Ошибка вставки картинки {img_path}: {e}")
-                    doc.add_paragraph(f"[Ошибка изображения: {os.path.basename(img_path)}]")
+                    doc.add_paragraph(f"[Ошибка изображения: {step.image_id}]")
             else:
-                logger.warning(f"Файл не найден: {img_path}")
+                logger.warning(f"Файл картинки не найден: {step.image_id}")
 
             # Таймкоды
             time_text = f"Таймкод: {self.format_time(float(step.time_start))} - {self.format_time(float(step.time_end))}"
@@ -190,10 +224,21 @@ class PdfDocument(BaseDocument):
                 pdf.add_page()
 
             # Вставляем картинку
-            img_path = os.path.join(os.path.dirname(filename), step.image_id)
-            if os.path.exists(img_path):
-                pdf.image(img_path, x=10, w=100)
-                pdf.ln(1)
+            # Ищем картинку с использованием task_id
+            img_path = self._find_image_path(step.image_id)
+            
+            # Для обратной совместимости: ищем в директории документа
+            if not img_path:
+                fallback_path = os.path.join(os.path.dirname(filename), step.image_id)
+                if os.path.exists(fallback_path):
+                    img_path = fallback_path
+            
+            if img_path and os.path.exists(img_path):
+                try:
+                    pdf.image(img_path, x=10, w=100)
+                    pdf.ln(1)
+                except Exception as e:
+                    logger.error(f"Ошибка вставки картинки {img_path}: {e}")
 
             pdf.set_font('TimesNewRoman', 'I', 10)
             pdf.cell(0, 10, f"Время: {self.format_time(float(step.time_start))} - {self.format_time(float(step.time_end))}", ln=True)
@@ -208,18 +253,18 @@ class DocumentFactory:
     def register(cls, ext: str, doc_cls: Type[BaseDocument]) -> None:
         cls._rigestry[ext.lower()] = doc_cls
     @classmethod
-    def create_document(cls, ext: str) -> BaseDocument:
+    def create_document(cls, ext: str, task_id: Optional[str] = None) -> BaseDocument:
         ext = ext.lower()
         if ext not in cls._rigestry:
             raise ValueError(f"Неподдерживаемое расширение: {ext}")
-        return cls._rigestry[ext]()
+        return cls._rigestry[ext](task_id=task_id)
 
 DocumentFactory.register(ext=".docx", doc_cls=DocxDocument)
 DocumentFactory.register(ext=".pdf", doc_cls=PdfDocument)
 
 class DocumentCreator:
     @staticmethod
-    def create(text: str, path: str) -> None:
+    def create(text: str, path: str, task_id: Optional[str] = None) -> None:
         _, doc_suffix = os.path.splitext(path)
-        document = DocumentFactory.create_document(ext=doc_suffix)
+        document = DocumentFactory.create_document(ext=doc_suffix, task_id=task_id)
         document.create(text, path)

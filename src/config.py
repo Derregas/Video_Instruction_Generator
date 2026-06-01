@@ -43,6 +43,7 @@ class AppConfig:
     AUDIO = AudioSettings()
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     TEMP_DIR = os.path.join(BASE_DIR, "temp")
+    RESULT_DIR = os.path.join(BASE_DIR, "result")
     CHILD_TIME_OUT: int = int(os.getenv("CHILD_TIME_OUT", 600))
 
 

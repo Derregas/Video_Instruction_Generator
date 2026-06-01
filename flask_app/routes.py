@@ -11,6 +11,7 @@ from src.services.use_cases import (
 )
 from src.decorators import login_required_custom, can_manage_tasks
 from src.domain.exceptions import DatabaseError
+from src.services.file_management_service import FileManagementService
 
 logger = logging.getLogger(__name__)
 main_bp = Blueprint('main', __name__)
@@ -89,6 +90,8 @@ def process_video():
         # Выполняем use case (валидация происходит здесь)
         use_case = app_services.create_task_use_case
         response = use_case.execute(create_task_request)
+        # *routes -> create_task_use_case -> task_creation_service -> task_queue -> task_processor -> processor
+        #                                                 ↓  -> ->  ->  task.db ->   ->  ->  ↑
 
         # Перенаправляем пользователя незаметно
         logger.info(f"Задача {response.task_id} успешно создана пользователем {current_user.username}")
@@ -135,9 +138,11 @@ def get_task_video(task_id: str):
         if not task:
             return jsonify({'error': 'Задача не найдена'}), 404
         
-        video_path = os.path.join(AppConfig.TEMP_DIR, task_id, task.video_filename)
-        if not os.path.exists(video_path):
-            logger.warning(f"Видеофайл не найден: {video_path}")
+        # Ищем видео в result (если задача завершена) или в temp (если обрабатывается)
+        video_path = FileManagementService.get_task_file_path(task_id, task.video_filename)
+        
+        if not video_path or not os.path.exists(video_path):
+            logger.warning(f"Видеофайл не найден: {task.video_filename} для задачи {task_id}")
             return jsonify({'error': 'Видеофайл не найден'}), 404
 
         logger.debug(f"[{task_id}] Отправка видеофайла")

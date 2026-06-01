@@ -89,7 +89,7 @@ class CreateTaskUseCase:
             if request.documents:
                 document_names = self.upload_service.save_documents(request.documents, task_id)
             
-            # ЭТАП 6: Создаём задачу в БД и добавляем в очередь
+            # ЭТАП 6: Создаём задачу в БД и добавляем в очередь (обработка внутри task_processor)
             self.task_creation_service.create_and_queue(
                 task_id=task_id,
                 video_filename=request.video.filename, # type: ignore

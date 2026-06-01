@@ -9,6 +9,7 @@ from src.domain.repositories import ITaskRepository
 from src.domain.exceptions import TaskNotFoundError, DatabaseError
 from src.core.processor import InstructionProcessingService
 from src.services.instruction_result_service import InstructionResultService
+from src.services.file_management_service import FileManagementService
 from src.modules.response_schema import Instruction as InstructionSchema
 
 logger = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class VideoInstructionProcessor(ITaskProcessor):
             )
             
             # ПАРСИНГ И СОХРАНЕНИЕ В НОВЫЕ ТАБЛИЦЫ
+            used_image_ids = []
             try:
                 # Парсим JSON строку в Pydantic модель
                 parsed_result = InstructionSchema.model_validate_json(result_json_str)
@@ -98,7 +100,7 @@ class VideoInstructionProcessor(ITaskProcessor):
                     keywords_list=parsed_result.key_words
                 )
                 
-                # 3. Сохраняем шаги
+                # 3. Сохраняем шаги и собираем ID используемых картинок
                 for i, step_data in enumerate(parsed_result.steps, 1):
                     self.result_service.add_instruction_step(
                         instruction_id=instruction.id,
@@ -109,6 +111,9 @@ class VideoInstructionProcessor(ITaskProcessor):
                         time_end=step_data.end_time,
                         image_id=step_data.best_image_id
                     )
+                    # Собираем ID используемых картинок
+                    if step_data.best_image_id:
+                        used_image_ids.append(step_data.best_image_id)
                 
                 logger.info(f"[{task_id}] Структурированные данные сохранены в requirements.db")
                 
@@ -117,8 +122,12 @@ class VideoInstructionProcessor(ITaskProcessor):
                 # Если парсинг не удался, продолжаем, чтобы задача не висела, 
                 # но в result задачи останется сырой JSON
             
+            # ПЕРЕНОС ФАЙЛОВ ИЗ TEMP В RESULT
+            # Переносим видео, документы (только исходные) и используемые картинки
+            FileManagementService.move_completed_task_files(task_id, task.document_names, used_image_ids)
+            
             # Отмечаем как завершено
-            task.mark_completed(result_json_str)
+            task.mark_completed()
             self.task_repo.update(task)
             logger.info(f"[{task_id}] Обработка завершена успешно")
             

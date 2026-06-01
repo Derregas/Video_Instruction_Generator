@@ -62,7 +62,8 @@ class InstructionGenerationService:
             filepath = os.path.join(task_dir, filename)
             
             # Передаем структурированные данные вместо сырого JSON
-            DocumentCreator.create(instruction_data, filepath)
+            # Передаём task_id для правильного поиска картинок
+            DocumentCreator.create(instruction_data, filepath, task_id=task_id)
             logger.info(f"[{task_id}] Инструкция сгенерирована: {filepath}")
             
             return filepath
