@@ -489,6 +489,17 @@
         <div class="tasks-content">
             {% if tasks %}
                 <div class="tasks-filter">
+                    <div style="flex: 1; display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="searchInput" placeholder="Поиск по названию, #ключевые слова, @пользователь" 
+                               style="flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 14px;"
+                               onkeyup="performSearch()">
+                        <button onclick="clearSearch()" style="padding: 8px 12px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; cursor: pointer;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tasks-filter">
                     <button class="filter-btn active" onclick="filterTasks('all')">
                         <i class="fas fa-list"></i> Все
                     </button>
@@ -508,7 +519,12 @@
 
                 <div class="tasks-list" id="tasksList">
                     {% for task in tasks %}
-                        <div class="task-card task-item" data-status="{{ task.status.value }}" onclick="goToTask('{{ task.id }}')">
+                        <div class="task-card task-item" 
+                             data-status="{{ task.status.value }}"
+                             data-title="{{ instructions_dict.get(task.id, task.video_filename) | lower }}"
+                             data-username="{{ users_dict.get(task.user_id, 'Неизвестно') | lower }}"
+                             data-keywords="{{ keywords_dict.get(task.id, []) | join(' ') | lower }}"
+                             onclick="goToTask('{{ task.id }}')">
                             <div class="task-id" title="{{ task.id }}">{{ task.id }}</div>
                             <div class="task-info">
                                 <div class="task-status {{ task.status.value }}">
@@ -522,8 +538,8 @@
                                         Ошибка
                                     {% endif %}
                                 </div>
-                                <div class="task-filename" title="{{ task.video_filename }}">
-                                    <i class="fas fa-film"></i> {{ task.video_filename }}
+                                <div class="task-filename" title="{{ instructions_dict.get(task.id, task.video_filename) }}">
+                                    <i class="fas fa-film"></i> {{ instructions_dict.get(task.id, task.video_filename) }}
                                 </div>
                             </div>
                             <div class="task-user" title="Создал: {{ users_dict.get(task.user_id, 'Неизвестно') }}">
@@ -581,17 +597,66 @@
         let currentPage = 1;
         const itemsPerPage = 10;
         let currentFilter = 'all';
+        let currentSearch = '';
 
         function goToTask(taskId) {
             window.location.href = `/task/${taskId}`;
         }
 
+        function performSearch() {
+            currentSearch = document.getElementById('searchInput').value.trim();
+            currentPage = 1;
+            showPage(1);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            currentSearch = '';
+            currentPage = 1;
+            showPage(1);
+        }
+
+        function matchesSearch(item, searchTerm) {
+            if (!searchTerm) return true;
+
+            const title = item.dataset.title || '';
+            const username = item.dataset.username || '';
+            const keywords = item.dataset.keywords || '';
+
+            // Разбиваем поисковый запрос на части
+            const searchParts = searchTerm.split(/\s+/).filter(p => p.length > 0);
+
+            for (const part of searchParts) {
+                if (part.startsWith('#')) {
+                    // Поиск по ключевым словам
+                    const keyword = part.substring(1).toLowerCase();
+                    if (keyword && !keywords.includes(keyword)) {
+                        return false;
+                    }
+                } else if (part.startsWith('@')) {
+                    // Поиск по пользователю
+                    const user = part.substring(1).toLowerCase();
+                    if (user && !username.includes(user)) {
+                        return false;
+                    }
+                } else {
+                    // Поиск по названию инструкции/видео
+                    if (!title.includes(part.toLowerCase())) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
         function getFilteredItems() {
             const items = Array.from(document.querySelectorAll('.task-item'));
-            if (currentFilter === 'all') {
-                return items;
-            }
-            return items.filter(item => item.dataset.status === currentFilter);
+            const filtered = items.filter(item => {
+                const statusMatch = currentFilter === 'all' || item.dataset.status === currentFilter;
+                const searchMatch = matchesSearch(item, currentSearch);
+                return statusMatch && searchMatch;
+            });
+            return filtered;
         }
 
         function showPage(page) {
@@ -610,8 +675,8 @@
             document.querySelectorAll('.task-item').forEach(item => item.style.display = 'none');
 
             if (totalItems === 0) {
-                // Показываем сообщение "Ничего не найдено" только при фильтрации
-                if (currentFilter !== 'all') {
+                // Показываем сообщение "Ничего не найдено" при фильтрации или поиске
+                if (currentFilter !== 'all' || currentSearch !== '') {
                     emptyMessage.style.display = 'flex';
                 }
                 paginationContainer.style.display = 'none';

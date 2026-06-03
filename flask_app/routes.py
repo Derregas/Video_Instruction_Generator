@@ -33,10 +33,42 @@ def index():
         # Получаем информацию о пользователях для отображения в таблице
         users = app_services.user_repo.get_all()
         users_dict = {u.id: u.username for u in users}
-        return render_template('tasks_list.html.j2', tasks=tasks, users_dict=users_dict)
+        
+        # Получаем названия инструкций и ключевые слова из БД
+        instructions_dict = {}
+        keywords_dict = {}
+        for task in tasks:
+            try:
+                instruction_data = app_services.instruction_result_service.get_instruction_by_task_id(task.id)
+                if instruction_data and isinstance(instruction_data, dict) and 'instruction' in instruction_data:
+                    instruction = instruction_data.get('instruction')
+                    if instruction and hasattr(instruction, 'title') and instruction.title:
+                        instructions_dict[task.id] = instruction.title
+                    else:
+                        # Если нет title, используем название видео
+                        instructions_dict[task.id] = task.video_filename
+                    
+                    # Получаем ключевые слова
+                    keywords_list = instruction_data.get('keywords', [])
+                    if keywords_list:
+                        keywords_dict[task.id] = keywords_list.keywords_list
+                    # if keywords_list.keywords_list:
+                    #     keywords_dict[task.id] = [kw.word for kw in keywords_list if hasattr(kw, 'word')]
+                    else:
+                        keywords_dict[task.id] = []
+                else:
+                    # Если инструкции нет, используем название видео
+                    instructions_dict[task.id] = task.video_filename
+                    keywords_dict[task.id] = []
+            except Exception:
+                # Если ошибка при получении инструкции, используем название видео
+                instructions_dict[task.id] = task.video_filename
+                keywords_dict[task.id] = []
+        
+        return render_template('tasks_list.html.j2', tasks=tasks, users_dict=users_dict, instructions_dict=instructions_dict, keywords_dict=keywords_dict)
     except Exception as e:
         logger.error(f"Ошибка при загрузке списка задач: {e}")
-        return render_template('tasks_list.html.j2', tasks=[], users_dict={}, error="Ошибка при загрузке задач"), 500  
+        return render_template('tasks_list.html.j2', tasks=[], users_dict={}, instructions_dict={}, error="Ошибка при загрузке задач"), 500  
 
 @main_bp.route('/task')
 @can_manage_tasks
